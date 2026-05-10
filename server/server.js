@@ -1,18 +1,29 @@
 require("dotenv").config();
 
 const express = require("express");
-const mongoose = require("mongoose");
+const cors = require("cors");
+const connectDB = require("./config/db");
+
+const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log(err));
+connectDB();
+
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true
+  })
+);
+
+app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("Election Staff System API Running");
+  res.send("Election Staffs Data Collection API is running");
 });
+
+app.use("/api/auth", authRoutes);
 
 const PORT = process.env.PORT || 5000;
 

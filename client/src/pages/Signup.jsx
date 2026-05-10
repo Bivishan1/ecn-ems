@@ -124,7 +124,7 @@ const Signup = () => {
                 <option value="">-- Select Office --</option>
                 {offices.map((office) => (
                   <option key={office._id} value={office._id}>
-                    {office.officeName} - {office.district}
+                    {office.officeName}
                   </option>
                 ))}
               </select>

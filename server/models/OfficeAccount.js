@@ -8,11 +8,13 @@ const officeAccountSchema = new mongoose.Schema(
       required: true,
       unique: true
     },
+
     fullName: {
       type: String,
       required: true,
       trim: true
     },
+
     email: {
       type: String,
       required: true,
@@ -20,19 +22,21 @@ const officeAccountSchema = new mongoose.Schema(
       lowercase: true,
       trim: true
     },
+
+    contactNumber: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    password: {
+      type: String,
+      required: true
+    },
+
     isEmailVerified: {
       type: Boolean,
-      default: false
-    },
-    role: {
-      type: String,
-      enum: ["office"],
-      default: "office"
-    },
-    status: {
-      type: String,
-      enum: ["pending", "active", "blocked"],
-      default: "pending"
+      default: true
     }
   },
   { timestamps: true }

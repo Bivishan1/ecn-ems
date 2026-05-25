@@ -13,15 +13,6 @@ const officeSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
-    district: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    municipality: {
-      type: String,
-      trim: true
-    },
     isActive: {
       type: Boolean,
       default: true

@@ -8,27 +8,46 @@ const otpSchema = new mongoose.Schema(
       lowercase: true,
       trim: true
     },
+
     otpHash: {
       type: String,
       required: true
     },
+
     purpose: {
       type: String,
-      enum: ["signup", "login"],
-      required: true
+      enum: ["signup"],
+      default: "signup"
     },
+
     office: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Office"
+      ref: "Office",
+      required: true
     },
+
     fullName: {
       type: String,
+      required: true,
       trim: true
     },
+
+    contactNumber: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    passwordHash: {
+      type: String,
+      required: true
+    },
+
     expiresAt: {
       type: Date,
       required: true
     },
+
     used: {
       type: Boolean,
       default: false

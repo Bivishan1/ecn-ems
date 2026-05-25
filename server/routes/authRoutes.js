@@ -18,7 +18,6 @@ const generateToken = (account) => {
   return jwt.sign(
     {
       id: account._id,
-      role: account.role,
       office: account.office
     },
     process.env.JWT_SECRET,
@@ -32,14 +31,24 @@ const isValidEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
+const isValidNepaliMobile = (number) => {
+  return /^9[78]\d{8}$/.test(number);
+};
+
+const isStrongPassword = (password) => {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%_]).{8,24}$/.test(
+    password
+  );
+};
+
 /**
- * GET offices for dropdown
+ * GET offices for signup dropdown
  */
 router.get("/offices", async (req, res) => {
   try {
     const offices = await Office.find({ isActive: true })
-      .select("officeCode officeName district municipality")
-      .sort({ district: 1, officeName: 1 });
+      .select("officeCode officeName isActive")
+      .sort({ officeName: 1 });
 
     res.json({
       success: true,
@@ -55,17 +64,31 @@ router.get("/offices", async (req, res) => {
 
 /**
  * SIGNUP STEP 1:
- * Office selects office, enters full name and email.
- * Then OTP is sent to email.
+ * Validate signup details, store them temporarily in OTP collection,
+ * send OTP, but do not create OfficeAccount yet.
  */
 router.post("/signup/request-otp", async (req, res) => {
   try {
-    const { officeId, fullName, email } = req.body;
+    const {
+      officeId,
+      fullName,
+      email,
+      contactNumber,
+      password,
+      confirmPassword
+    } = req.body;
 
-    if (!officeId || !fullName || !email) {
+    if (
+      !officeId ||
+      !fullName ||
+      !email ||
+      !contactNumber ||
+      !password ||
+      !confirmPassword
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Office, full name and email are required"
+        message: "All fields are required"
       });
     }
 
@@ -76,43 +99,73 @@ router.post("/signup/request-otp", async (req, res) => {
       });
     }
 
+    if (!isValidNepaliMobile(contactNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: "Contact number must be a valid Nepali mobile number"
+      });
+    }
+
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be 8-24 characters and include uppercase, lowercase, number and special character"
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Password and confirm password do not match"
+      });
+    }
+
     const office = await Office.findById(officeId);
 
     if (!office || !office.isActive) {
       return res.status(404).json({
         success: false,
-        message: "Office not found or inactive"
+        message: "Selected office not found or inactive"
       });
     }
 
-    const alreadyRegisteredOffice = await OfficeAccount.findOne({
+    const existingOfficeAccount = await OfficeAccount.findOne({
       office: officeId
     });
 
-    if (alreadyRegisteredOffice) {
+    if (existingOfficeAccount) {
       return res.status(409).json({
         success: false,
-        message: "This office is already registered"
+        message: "This office has already signed up"
       });
     }
 
-    const alreadyRegisteredEmail = await OfficeAccount.findOne({
+    const existingEmailAccount = await OfficeAccount.findOne({
       email: email.toLowerCase()
     });
 
-    if (alreadyRegisteredEmail) {
+    if (existingEmailAccount) {
       return res.status(409).json({
         success: false,
-        message: "This email is already registered"
+        message: "email already registered"
       });
     }
 
     const otp = generateOtp();
     const otpHash = await bcrypt.hash(otp, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
+    /**
+     * Important:
+     * We delete only pending OTP/signup request.
+     * Since account is not created yet, same user can signup again
+     * if they did not verify the previous OTP.
+     */
     await Otp.deleteMany({
       email: email.toLowerCase(),
-      purpose: "signup"
+      purpose: "signup",
+      used: false
     });
 
     await Otp.create({
@@ -121,37 +174,42 @@ router.post("/signup/request-otp", async (req, res) => {
       purpose: "signup",
       office: officeId,
       fullName,
+      contactNumber,
+      passwordHash,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000)
     });
 
     await sendEmail({
       to: email,
-      subject: "Office Signup OTP Verification",
+      subject: "Verify Your Office Account",
       html: `
         <h2>Election Staff Data Collection System</h2>
-        <p>Your OTP for office registration is:</p>
+        <p>Dear ${fullName},</p>
+        <p>Your OTP for office account registration is:</p>
         <h1>${otp}</h1>
         <p>This OTP will expire in 10 minutes.</p>
-        <p>If you did not request this, please ignore this email.</p>
+        <p>Please do not share this OTP with anyone.</p>
       `
     });
 
-    res.json({
+    res.status(200).json({
       success: true,
-      message: "OTP sent to email"
+      message: "OTP has been sent to your email. Please verify to complete registration.",
+      email: email.toLowerCase()
     });
   } catch (error) {
-    console.error("Signup OTP error:", error);
+    console.error("Signup request OTP error:", error);
+
     res.status(500).json({
       success: false,
-      message: "Failed to send OTP"
+      message: "Failed to send signup OTP"
     });
   }
 });
 
 /**
  * SIGNUP STEP 2:
- * Verify OTP and create office account.
+ * Verify OTP and create OfficeAccount only after successful OTP verification.
  */
 router.post("/signup/verify-otp", async (req, res) => {
   try {
@@ -164,6 +222,17 @@ router.post("/signup/verify-otp", async (req, res) => {
       });
     }
 
+    const existingEmailAccount = await OfficeAccount.findOne({
+      email: email.toLowerCase()
+    });
+
+    if (existingEmailAccount) {
+      return res.status(409).json({
+        success: false,
+        message: "email already registered"
+      });
+    }
+
     const otpRecord = await Otp.findOne({
       email: email.toLowerCase(),
       purpose: "signup",
@@ -173,68 +242,68 @@ router.post("/signup/verify-otp", async (req, res) => {
     if (!otpRecord) {
       return res.status(400).json({
         success: false,
-        message: "OTP not found. Please request a new OTP"
+        message: "OTP not found. Please register again"
       });
     }
 
     if (otpRecord.expiresAt < new Date()) {
       return res.status(400).json({
         success: false,
-        message: "OTP has expired"
+        message: "OTP has expired. Please register again"
       });
     }
 
-    const isMatch = await bcrypt.compare(otp, otpRecord.otpHash);
+    const isOtpMatch = await bcrypt.compare(otp, otpRecord.otpHash);
 
-    if (!isMatch) {
+    if (!isOtpMatch) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP"
       });
     }
 
-    const existingOffice = await OfficeAccount.findOne({
+    const existingOfficeAccount = await OfficeAccount.findOne({
       office: otpRecord.office
     });
 
-    if (existingOffice) {
+    if (existingOfficeAccount) {
       return res.status(409).json({
         success: false,
-        message: "This office is already registered"
+        message: "This office has already signed up"
       });
     }
 
     const account = await OfficeAccount.create({
       office: otpRecord.office,
       fullName: otpRecord.fullName,
-      email: email.toLowerCase(),
-      isEmailVerified: true,
-      status: "active"
+      email: otpRecord.email,
+      contactNumber: otpRecord.contactNumber,
+      password: otpRecord.passwordHash,
+      isEmailVerified: true
     });
 
     otpRecord.used = true;
     await otpRecord.save();
 
-    const populatedAccount = await OfficeAccount.findById(account._id).populate(
-      "office"
-    );
-
-    const token = generateToken(populatedAccount);
+    const populatedAccount = await OfficeAccount.findById(account._id)
+      .select("-password")
+      .populate("office");
 
     res.status(201).json({
       success: true,
-      message: "Office registered successfully",
-      token,
-      account: {
-        id: populatedAccount._id,
-        fullName: populatedAccount.fullName,
-        email: populatedAccount.email,
-        role: populatedAccount.role,
-        office: populatedAccount.office
-      }
+      message: "Registration verified successfully. You can now login.",
+      account: populatedAccount
     });
   } catch (error) {
-    console.error("Signup verify error:", error);
+    console.error("Signup verify OTP error:", error);
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "email already registered"
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: "Failed to verify OTP"
@@ -243,11 +312,10 @@ router.post("/signup/verify-otp", async (req, res) => {
 });
 
 /**
- * LOGIN STEP 1:
- * Registered office user enters email.
- * System sends login OTP.
+ * RESEND OTP:
+ * Since details are not stored in OfficeAccount yet, resend uses pending OTP record.
  */
-router.post("/login/request-otp", async (req, res) => {
+router.post("/signup/resend-otp", async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -258,45 +326,41 @@ router.post("/login/request-otp", async (req, res) => {
       });
     }
 
-    const account = await OfficeAccount.findOne({
+    const existingEmailAccount = await OfficeAccount.findOne({
       email: email.toLowerCase()
-    }).populate("office");
+    });
 
-    if (!account) {
-      return res.status(404).json({
+    if (existingEmailAccount) {
+      return res.status(409).json({
         success: false,
-        message: "Account not found. Please signup first"
+        message: "email already registered"
       });
     }
 
-    if (!account.isEmailVerified || account.status !== "active") {
-      return res.status(403).json({
+    const pendingSignup = await Otp.findOne({
+      email: email.toLowerCase(),
+      purpose: "signup",
+      used: false
+    }).sort({ createdAt: -1 });
+
+    if (!pendingSignup) {
+      return res.status(404).json({
         success: false,
-        message: "Account is not verified or active"
+        message: "Pending signup not found. Please register again"
       });
     }
 
     const otp = generateOtp();
-    const otpHash = await bcrypt.hash(otp, 10);
-
-    await Otp.deleteMany({
-      email: email.toLowerCase(),
-      purpose: "login"
-    });
-
-    await Otp.create({
-      email: email.toLowerCase(),
-      otpHash,
-      purpose: "login",
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000)
-    });
+    pendingSignup.otpHash = await bcrypt.hash(otp, 10);
+    pendingSignup.expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await pendingSignup.save();
 
     await sendEmail({
       to: email,
-      subject: "Login OTP",
+      subject: "Resend OTP - Verify Your Office Account",
       html: `
         <h2>Election Staff Data Collection System</h2>
-        <p>Your login OTP is:</p>
+        <p>Your new OTP is:</p>
         <h1>${otp}</h1>
         <p>This OTP will expire in 10 minutes.</p>
       `
@@ -304,58 +368,31 @@ router.post("/login/request-otp", async (req, res) => {
 
     res.json({
       success: true,
-      message: "Login OTP sent to email"
+      message: "New OTP sent to your email"
     });
   } catch (error) {
-    console.error("Login OTP error:", error);
+    console.error("Signup resend OTP error:", error);
+
     res.status(500).json({
       success: false,
-      message: "Failed to send login OTP"
+      message: "Failed to resend OTP"
     });
   }
 });
 
 /**
- * LOGIN STEP 2:
- * Verify login OTP and issue JWT.
+ * LOGIN:
+ * Since OfficeAccount is created only after OTP verification,
+ * any existing account is already verified.
  */
-router.post("/login/verify-otp", async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { email, password } = req.body;
 
-    if (!email || !otp) {
+    if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email and OTP are required"
-      });
-    }
-
-    const otpRecord = await Otp.findOne({
-      email: email.toLowerCase(),
-      purpose: "login",
-      used: false
-    }).sort({ createdAt: -1 });
-
-    if (!otpRecord) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP not found. Please request a new OTP"
-      });
-    }
-
-    if (otpRecord.expiresAt < new Date()) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP has expired"
-      });
-    }
-
-    const isMatch = await bcrypt.compare(otp, otpRecord.otpHash);
-
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP"
+        message: "Email and password are required"
       });
     }
 
@@ -363,15 +400,28 @@ router.post("/login/verify-otp", async (req, res) => {
       email: email.toLowerCase()
     }).populate("office");
 
-    if (!account || account.status !== "active") {
-      return res.status(403).json({
+    if (!account) {
+      return res.status(401).json({
         success: false,
-        message: "Account is not active"
+        message: "Invalid email or password"
       });
     }
 
-    otpRecord.used = true;
-    await otpRecord.save();
+    if (!account.isEmailVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "email is not verified yet"
+      });
+    }
+
+    const isPasswordMatch = await bcrypt.compare(password, account.password);
+
+    if (!isPasswordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password"
+      });
+    }
 
     const token = generateToken(account);
 
@@ -383,21 +433,23 @@ router.post("/login/verify-otp", async (req, res) => {
         id: account._id,
         fullName: account.fullName,
         email: account.email,
-        role: account.role,
+        contactNumber: account.contactNumber,
+        isEmailVerified: account.isEmailVerified,
         office: account.office
       }
     });
   } catch (error) {
-    console.error("Login verify error:", error);
+    console.error("Login error:", error);
+
     res.status(500).json({
       success: false,
-      message: "Failed to verify login OTP"
+      message: "Login failed"
     });
   }
 });
 
 /**
- * Current logged-in office account
+ * CURRENT LOGGED-IN ACCOUNT
  */
 router.get("/me", protect, async (req, res) => {
   res.json({
@@ -406,7 +458,8 @@ router.get("/me", protect, async (req, res) => {
       id: req.user._id,
       fullName: req.user.fullName,
       email: req.user.email,
-      role: req.user.role,
+      contactNumber: req.user.contactNumber,
+      isEmailVerified: req.user.isEmailVerified,
       office: req.user.office
     }
   });

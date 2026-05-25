@@ -16,7 +16,9 @@ const protect = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const account = await OfficeAccount.findById(decoded.id).populate("office");
+    const account = await OfficeAccount.findById(decoded.id)
+      .select("-password")
+      .populate("office");
 
     if (!account) {
       return res.status(401).json({
@@ -25,10 +27,10 @@ const protect = async (req, res, next) => {
       });
     }
 
-    if (account.status !== "active") {
+    if (!account.isEmailVerified) {
       return res.status(403).json({
         success: false,
-        message: "Account is not active"
+        message: "Email is not verified"
       });
     }
 

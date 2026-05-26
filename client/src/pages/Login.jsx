@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
+import Toast from "../components/Toast";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -11,7 +12,25 @@ const Login = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+
+  const [toast, setToast] = useState({
+    type: "",
+    message: ""
+  });
+
+  const showToast = (type, message) => {
+    setToast({
+      type,
+      message
+    });
+  };
+
+  const closeToast = () => {
+    setToast({
+      type: "",
+      message: ""
+    });
+  };
 
   const handleChange = (e) => {
     setFormData((prev) => ({
@@ -23,10 +42,10 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
 
-    setError("");
+    closeToast();
 
     if (!formData.email || !formData.password) {
-      setError("Email and password are required");
+      showToast("error", "Email and password are required");
       return;
     }
 
@@ -38,9 +57,13 @@ const Login = () => {
       localStorage.setItem("officeToken", res.data.token);
       localStorage.setItem("officeAccount", JSON.stringify(res.data.account));
 
-      navigate("/dashboard");
+      showToast("success", "Login successful");
+
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 700);
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      showToast("error", err.response?.data?.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -48,6 +71,12 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+      <Toast
+        type={toast.type}
+        message={toast.message}
+        onClose={closeToast}
+      />
+
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-800">
@@ -58,12 +87,6 @@ const Login = () => {
             Login using registered email and password.
           </p>
         </div>
-
-        {error && (
-          <div className="mt-5 bg-red-100 text-red-700 px-4 py-3 rounded-lg">
-            {error}
-          </div>
-        )}
 
         <form onSubmit={handleLogin} className="mt-6 space-y-5">
           <div>

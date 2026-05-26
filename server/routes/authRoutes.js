@@ -70,7 +70,7 @@ router.get("/offices", async (req, res) => {
 router.post("/signup/request-otp", async (req, res) => {
   try {
     const {
-      officeId,
+      officeCode,
       fullName,
       email,
       contactNumber,
@@ -79,7 +79,7 @@ router.post("/signup/request-otp", async (req, res) => {
     } = req.body;
 
     if (
-      !officeId ||
+      !officeCode ||
       !fullName ||
       !email ||
       !contactNumber ||
@@ -121,9 +121,12 @@ router.post("/signup/request-otp", async (req, res) => {
       });
     }
 
-    const office = await Office.findById(officeId);
+    const office = await Office.findOne({
+      officeCode,
+      isActive: true
+    });
 
-    if (!office || !office.isActive) {
+    if (!office) {
       return res.status(404).json({
         success: false,
         message: "Selected office not found or inactive"
@@ -131,7 +134,7 @@ router.post("/signup/request-otp", async (req, res) => {
     }
 
     const existingOfficeAccount = await OfficeAccount.findOne({
-      office: officeId
+      office: office._id
     });
 
     if (existingOfficeAccount) {
@@ -156,12 +159,6 @@ router.post("/signup/request-otp", async (req, res) => {
     const otpHash = await bcrypt.hash(otp, 10);
     const passwordHash = await bcrypt.hash(password, 10);
 
-    /**
-     * Important:
-     * We delete only pending OTP/signup request.
-     * Since account is not created yet, same user can signup again
-     * if they did not verify the previous OTP.
-     */
     await Otp.deleteMany({
       email: email.toLowerCase(),
       purpose: "signup",
@@ -172,7 +169,7 @@ router.post("/signup/request-otp", async (req, res) => {
       email: email.toLowerCase(),
       otpHash,
       purpose: "signup",
-      office: officeId,
+      office: office._id,
       fullName,
       contactNumber,
       passwordHash,
@@ -194,7 +191,8 @@ router.post("/signup/request-otp", async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "OTP has been sent to your email. Please verify to complete registration.",
+      message:
+        "OTP has been sent to your email. Please verify to complete registration.",
       email: email.toLowerCase()
     });
   } catch (error) {

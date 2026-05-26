@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
+import Toast from "../components/Toast";
+import { offices } from "../data/offices";
 
 const Signup = () => {
   const navigate = useNavigate();
 
   const [step, setStep] = useState("form");
-  const [offices, setOffices] = useState([]);
 
   const [formData, setFormData] = useState({
-    officeId: "",
+    officeCode: "",
     fullName: "",
     email: "",
     contactNumber: "",
@@ -20,26 +21,38 @@ const Signup = () => {
   const [otp, setOtp] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [officeLoading, setOfficeLoading] = useState(true);
   const [resendLoading, setResendLoading] = useState(false);
 
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [toast, setToast] = useState({
+    type: "",
+    message: ""
+  });
+
+  const [resendSeconds, setResendSeconds] = useState(0);
 
   useEffect(() => {
-    const loadOffices = async () => {
-      try {
-        setOfficeLoading(true);
-        const res = await axiosInstance.get("/auth/offices");
-        setOffices(res.data.offices || []);
-      } catch (err) {
-        setError("Failed to load office list:", err.message);
-      } finally {
-        setOfficeLoading(false);
-      }
-    };
-    loadOffices();
-  }, []);
+    if (resendSeconds <= 0) return;
+
+    const timer = setTimeout(() => {
+      setResendSeconds((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [resendSeconds]);
+
+  const showToast = (type, message) => {
+    setToast({
+      type,
+      message
+    });
+  };
+
+  const closeToast = () => {
+    setToast({
+      type: "",
+      message: ""
+    });
+  };
 
   const handleChange = (e) => {
     setFormData((prev) => ({
@@ -50,7 +63,6 @@ const Signup = () => {
 
   const validateForm = () => {
     const {
-      officeId,
       fullName,
       email,
       contactNumber,
@@ -59,7 +71,7 @@ const Signup = () => {
     } = formData;
 
     if (
-      !officeId ||
+     
       !fullName ||
       !email ||
       !contactNumber ||
@@ -98,13 +110,12 @@ const Signup = () => {
   const handleRequestOtp = async (e) => {
     e.preventDefault();
 
-    setError("");
-    setMessage("");
+    closeToast();
 
     const validationError = validateForm();
 
     if (validationError) {
-      setError(validationError);
+      showToast("error", validationError);
       return;
     }
 
@@ -113,10 +124,11 @@ const Signup = () => {
 
       const res = await axiosInstance.post("/auth/signup/request-otp", formData);
 
-      setMessage(res.data.message);
+      showToast("success", res.data.message);
       setStep("otp");
+      setResendSeconds(30);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to send OTP");
+      showToast("error", err.response?.data?.message || "Failed to send OTP");
     } finally {
       setLoading(false);
     }
@@ -125,11 +137,10 @@ const Signup = () => {
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
 
-    setError("");
-    setMessage("");
+    closeToast();
 
     if (!otp || otp.length !== 6) {
-      setError("Please enter a valid 6 digit OTP");
+      showToast("error", "Please enter a valid 6 digit OTP");
       return;
     }
 
@@ -141,24 +152,34 @@ const Signup = () => {
         otp
       });
 
-      setMessage(res.data.message);
+      showToast(
+        "success",
+        res.data.message || "OTP verified successfully"
+      );
 
       setTimeout(() => {
         navigate("/login");
-      }, 1000);
+      }, 5000);
     } catch (err) {
-      setError(err.response?.data?.message || "OTP verification failed");
+      showToast(
+        "error",
+        err.response?.data?.message || "OTP verification failed"
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendOtp = async () => {
-    setError("");
-    setMessage("");
+    closeToast();
+
+    if (resendSeconds > 0) {
+      showToast("error", `Please wait ${resendSeconds} seconds before resending OTP`);
+      return;
+    }
 
     if (!formData.email) {
-      setError("Email is required to resend OTP");
+      showToast("error", "Email is required to resend OTP");
       return;
     }
 
@@ -169,9 +190,10 @@ const Signup = () => {
         email: formData.email
       });
 
-      setMessage(res.data.message);
+      showToast("success", res.data.message);
+      setResendSeconds(30);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to resend OTP");
+      showToast("error", err.response?.data?.message || "Failed to resend OTP");
     } finally {
       setResendLoading(false);
     }
@@ -179,13 +201,18 @@ const Signup = () => {
 
   const goBackToEdit = () => {
     setOtp("");
-    setError("");
-    setMessage("");
+    closeToast();
     setStep("form");
   };
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4 py-10">
+      <Toast
+        type={toast.type}
+        message={toast.message}
+        onClose={closeToast}
+      />
+
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-800">
@@ -203,24 +230,13 @@ const Signup = () => {
               step === "form" || step === "otp" ? "bg-blue-600" : "bg-slate-200"
             }`}
           />
+
           <div
             className={`h-2 w-24 rounded-full ${
               step === "otp" ? "bg-blue-600" : "bg-slate-200"
             }`}
           />
         </div>
-
-        {message && (
-          <div className="mt-5 bg-green-100 text-green-700 px-4 py-3 rounded-lg">
-            {message}
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-5 bg-red-100 text-red-700 px-4 py-3 rounded-lg">
-            {error}
-          </div>
-        )}
 
         {step === "form" && (
           <form onSubmit={handleRequestOtp} className="mt-6 space-y-5">
@@ -230,18 +246,15 @@ const Signup = () => {
               </label>
 
               <select
-                name="officeId"
-                value={formData.officeId}
+                name="officeCode"
+                value={formData.officeCode}
                 onChange={handleChange}
-                disabled={officeLoading}
-                className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+                className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">
-                  {officeLoading ? "Loading offices..." : "-- Select Office --"}
-                </option>
+                <option value="">-- Select Office --</option>
 
                 {offices.map((office) => (
-                  <option key={office._id} value={office._id}>
+                  <option key={office.officeCode} value={office.officeCode}>
                     {office.officeCode} - {office.officeName}
                   </option>
                 ))}
@@ -291,6 +304,7 @@ const Signup = () => {
                 value={formData.contactNumber}
                 onChange={(e) => {
                   const value = e.target.value.replace(/\D/g, "");
+
                   setFormData((prev) => ({
                     ...prev,
                     contactNumber: value
@@ -341,7 +355,7 @@ const Signup = () => {
 
             <button
               type="submit"
-              disabled={loading || officeLoading}
+              disabled={loading}
               className="w-full bg-blue-600 text-white rounded-lg py-2.5 font-semibold hover:bg-blue-700 disabled:bg-blue-300"
             >
               {loading ? "Sending OTP..." : "Register and Send OTP"}
@@ -352,9 +366,7 @@ const Signup = () => {
         {step === "otp" && (
           <form onSubmit={handleVerifyOtp} className="mt-6 space-y-5">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-              <p className="text-sm text-slate-600">
-                OTP has been sent to:
-              </p>
+              <p className="text-sm text-slate-600">OTP has been sent to:</p>
               <p className="font-semibold text-slate-800">
                 {formData.email}
               </p>
@@ -389,10 +401,14 @@ const Signup = () => {
             <button
               type="button"
               onClick={handleResendOtp}
-              disabled={resendLoading}
-              className="w-full border border-slate-300 text-slate-700 rounded-lg py-2.5 font-semibold hover:bg-slate-50 disabled:bg-slate-100"
+              disabled={resendLoading || resendSeconds > 0}
+              className="w-full border border-slate-300 text-slate-700 rounded-lg py-2.5 font-semibold hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
             >
-              {resendLoading ? "Sending..." : "Resend OTP"}
+              {resendLoading
+                ? "Sending..."
+                : resendSeconds > 0
+                ? `Resend OTP after ${resendSeconds}s`
+                : "Resend OTP"}
             </button>
 
             <button

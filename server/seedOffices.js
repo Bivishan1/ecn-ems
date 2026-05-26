@@ -20,6 +20,12 @@ const offices = [
     officeName: "मालपोत कार्यालय चितवन",
     district: "चितवन",
     municipality: "भरतपुर महानगरपालिका"
+  },
+   {
+    officeCode: "BAG-003",
+    officeName: "जिल्ला निर्वाचन कार्यालय, चितवन",
+    district: "चितवन",
+    municipality: "भरतपुर महानगरपालिका"
   }
 ];
 

@@ -1,15 +1,10 @@
 const mongoose = require("mongoose");
 
-const otpSchema = new mongoose.Schema(
+const officeLoginLogSchema = new mongoose.Schema(
   {
     office: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Office",
-      required: true
-    },
-
-    otpHash: {
-      type: String,
       required: true
     },
 
@@ -25,17 +20,20 @@ const otpSchema = new mongoose.Schema(
       trim: true
     },
 
-    expiresAt: {
+    verifiedAt: {
       type: Date,
-      required: true
+      default: Date.now
     },
 
-    used: {
-      type: Boolean,
-      default: false
+    ipAddress: {
+      type: String
+    },
+
+    userAgent: {
+      type: String
     }
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Otp", otpSchema);
+module.exports = mongoose.model("OfficeLoginLog", officeLoginLogSchema);

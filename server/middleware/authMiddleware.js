@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const OfficeAccount = require("../models/OfficeAccount");
+const OfficeAccess = require("../models/OfficeAccess");
 
 const protect = async (req, res, next) => {
   try {
@@ -13,28 +13,37 @@ const protect = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const account = await OfficeAccount.findById(decoded.id)
-      .select("-password")
-      .populate("office");
+    const officeAccess = await OfficeAccess.findById(decoded.id).populate(
+      "office",
+      "officeCode officeName role isActive"
+    );
 
-    if (!account) {
+    if (!officeAccess) {
       return res.status(401).json({
         success: false,
-        message: "Account not found"
+        message: "Office access record not found"
       });
     }
 
-    if (!account.isEmailVerified) {
+    if (!officeAccess.office || !officeAccess.office.isActive) {
       return res.status(403).json({
         success: false,
-        message: "Email is not verified"
+        message: "Office is inactive or not found"
       });
     }
 
-    req.user = account;
+    if (!officeAccess.hasVerifiedOtp) {
+      return res.status(403).json({
+        success: false,
+        message: "OTP verification required"
+      });
+    }
+
+    req.user = officeAccess;
+    req.role = officeAccess.office.role;
+
     next();
   } catch (error) {
     return res.status(401).json({
@@ -44,4 +53,26 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+const adminOnly = (req, res, next) => {
+  if (req.role !== "admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Admin access only"
+    });
+  }
+
+  next();
+};
+
+const officeOnly = (req, res, next) => {
+  if (req.role !== "office") {
+    return res.status(403).json({
+      success: false,
+      message: "Office access only"
+    });
+  }
+
+  next();
+};
+
+module.exports = { protect, adminOnly, officeOnly };

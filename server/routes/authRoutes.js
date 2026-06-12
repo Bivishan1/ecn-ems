@@ -7,7 +7,7 @@ const OfficeAccess = require("../models/OfficeAccess");
 const OfficeLoginLog = require("../models/OfficeLoginLog");
 const Otp = require("../models/Otp");
 const sendEmail = require("../utils/sendEmail");
-const { protect } = require("../middleware/authMiddleware");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
@@ -43,6 +43,107 @@ const maskEmail = (email) => {
   const visiblePart = name.slice(0, 2);
   return `${visiblePart}${"*".repeat(Math.max(name.length - 2, 3))}@${domain}`;
 };
+
+router.get("/admin/registered-offices", protect, adminOnly, async (req, res) => {
+  try {
+    const registeredOffices = await OfficeAccess.find({
+      hasVerifiedOtp: true,
+    })
+      .populate("office", "officeCode officeName role isActive")
+      .sort({ lastLoginAt: -1 });
+
+    const normalRegisteredOffices = registeredOffices
+      .filter((item) => {
+        return (
+          item.office &&
+          item.office.isActive === true &&
+          item.office.role === "office"
+        );
+      })
+      .map((item) => ({
+        accessId: item._id,
+        office: item.office,
+        loginCount: item.loginCount,
+        hasVerifiedOtp: item.hasVerifiedOtp,
+        lastVerifiedAt: item.lastVerifiedAt,
+        lastLoginAt: item.lastLoginAt,
+        lastResponsiblePersonName: item.lastResponsiblePersonName,
+        lastContactNumber: item.lastContactNumber,
+      }));
+
+    res.json({
+      success: true,
+      offices: normalRegisteredOffices,
+    });
+  } catch (error) {
+    console.error("Registered offices error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch registered offices",
+    });
+  }
+});
+
+router.get("/admin/pending-offices", protect, adminOnly, async (req, res) => {
+  try {
+    const verifiedNormalOffices = await OfficeAccess.aggregate([
+      {
+        $match: {
+          hasVerifiedOtp: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "offices",
+          localField: "office",
+          foreignField: "_id",
+          as: "officeData",
+        },
+      },
+      {
+        $unwind: "$officeData",
+      },
+      {
+        $match: {
+          "officeData.isActive": true,
+          "officeData.role": "office",
+        },
+      },
+      {
+        $group: {
+          _id: "$office",
+        },
+      },
+    ]);
+
+    const verifiedNormalOfficeIds = verifiedNormalOffices.map(
+      (item) => item._id
+    );
+
+    const pendingOffices = await Office.find({
+      isActive: true,
+      role: "office",
+      _id: {
+        $nin: verifiedNormalOfficeIds,
+      },
+    })
+      .select("officeCode officeName role isActive")
+      .sort({ officeName: 1 });
+
+    res.json({
+      success: true,
+      offices: pendingOffices,
+    });
+  } catch (error) {
+    console.error("Pending offices error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch pending offices",
+    });
+  }
+});
 
 /**
  * GET offices for dropdown
@@ -335,29 +436,85 @@ router.get("/me", protect, async (req, res) => {
  * Later, when you add employee and polling center models,
  * you can extend this route.
  */
-router.get("/dashboard-summary", async (req, res) => {
+router.get("/dashboard-summary", protect, adminOnly, async (req, res) => {
   try {
-    const totalOffices = await Office.countDocuments({ isActive: true });
-
-    const registeredOffices = await OfficeAccess.countDocuments({
-      hasVerifiedOtp: true
+    /**
+     * Count only normal offices.
+     * Admin office should not be counted in collection progress.
+     */
+    const totalOffices = await Office.countDocuments({
+      isActive: true,
+      role: "office",
     });
 
-    const pendingOffices = totalOffices - registeredOffices;
-
-    const totalLoginEvents = await OfficeLoginLog.countDocuments();
-
-    const loginCountResult = await OfficeAccess.aggregate([
+    /**
+     * Count only verified normal offices.
+     * This excludes admin office even if admin has logged in.
+     */
+    const verifiedNormalOfficeIds = await OfficeAccess.aggregate([
+      {
+        $match: {
+          hasVerifiedOtp: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "offices",
+          localField: "office",
+          foreignField: "_id",
+          as: "officeData",
+        },
+      },
+      {
+        $unwind: "$officeData",
+      },
+      {
+        $match: {
+          "officeData.isActive": true,
+          "officeData.role": "office",
+        },
+      },
       {
         $group: {
-          _id: null,
-          totalLoginCount: { $sum: "$loginCount" }
-        }
-      }
+          _id: "$office",
+        },
+      },
     ]);
 
-    const totalLoginCount =
-      loginCountResult.length > 0 ? loginCountResult[0].totalLoginCount : 0;
+    const registeredOffices = verifiedNormalOfficeIds.length;
+
+    const pendingOffices = Math.max(totalOffices - registeredOffices, 0);
+
+    /**
+     * Optional:
+     * If you want total login events to include admin login too, keep it as-is.
+     * If you want only normal office login events, use the aggregate version below.
+     */
+    const totalLoginEventsResult = await OfficeLoginLog.aggregate([
+      {
+        $lookup: {
+          from: "offices",
+          localField: "office",
+          foreignField: "_id",
+          as: "officeData",
+        },
+      },
+      {
+        $unwind: "$officeData",
+      },
+      {
+        $match: {
+          "officeData.isActive": true,
+          "officeData.role": "office",
+        },
+      },
+      {
+        $count: "total",
+      },
+    ]);
+
+    const totalLoginEvents =
+      totalLoginEventsResult.length > 0 ? totalLoginEventsResult[0].total : 0;
 
     res.json({
       success: true,
@@ -366,21 +523,19 @@ router.get("/dashboard-summary", async (req, res) => {
         registeredOffices,
         pendingOffices,
         totalLoginEvents,
-        totalLoginCount,
 
-        // Placeholder values for future modules
         totalEmployeesCollected: 0,
         duplicateRecords: 0,
         eligibleForPollingDuty: 0,
-        totalPollingCenters: 0
-      }
+        totalPollingCenters: 0,
+      },
     });
   } catch (error) {
     console.error("Dashboard summary error:", error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to fetch dashboard summary"
+      message: "Failed to fetch dashboard summary",
     });
   }
 });
@@ -389,7 +544,7 @@ router.get("/dashboard-summary", async (req, res) => {
  * Office login logs.
  * This lets admin see how many times each office verified OTP.
  */
-router.get("/office-login-logs", async (req, res) => {
+router.get("/office-login-logs",protect, adminOnly, async (req, res) => {
   try {
     const logs = await OfficeLoginLog.find()
       .populate("office", "officeCode officeName")

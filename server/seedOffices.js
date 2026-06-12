@@ -7,7 +7,7 @@ const offices = [
   {
      officeCode: "BAG-MAK-ADMIN",
     officeName: "प्रदेश निर्वाचन कार्यालय, मकवानपुर",
-    officialEmail: "ec.deo.mkpur@election.gov.np",
+    officialEmail: "deo.makwanpur@election.gov.np",
     role: "admin",
     isActive: true
   },

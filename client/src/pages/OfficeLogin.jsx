@@ -14,7 +14,7 @@ const OfficeLogin = () => {
   const [formData, setFormData] = useState({
     officeId: "",
     responsiblePersonName: "",
-    contactNumber: ""
+    contactNumber: "",
   });
 
   const [otp, setOtp] = useState("");
@@ -24,21 +24,15 @@ const OfficeLogin = () => {
 
   const [toast, setToast] = useState({
     type: "",
-    message: ""
+    message: "",
   });
 
-  const showToast = (type, message) => {
-    setToast({
-      type,
-      message
-    });
+  const closeToast = () => {
+    setToast({ type: "", message: "" });
   };
 
-  const closeToast = () => {
-    setToast({
-      type: "",
-      message: ""
-    });
+  const showToast = (type, message) => {
+    setToast({ type, message });
   };
 
   const getCooldownKey = (officeId) => {
@@ -54,8 +48,8 @@ const OfficeLogin = () => {
     setResendSeconds(seconds);
   };
 
-  useEffect(() => {
-  const loadCooldown = (officeId) => {
+      useEffect(() => {
+      const loadCooldown = (officeId) => {
     if (!officeId) {
       setResendSeconds(0);
       return;
@@ -78,27 +72,26 @@ const OfficeLogin = () => {
       localStorage.removeItem(getCooldownKey(officeId));
       setResendSeconds(0);
     }
-  }; loadCooldown(formData.officeId);
+  };
+    loadCooldown(formData.officeId);
   }, [formData.officeId]);
 
-  useEffect(() => {
+    useEffect(() => {
   const fetchOffices = async () => {
     try {
       setOfficeLoading(true);
 
-      const res = await axiosInstance.get("/auth/offices");
+      const res = await axiosInstance.get("/office/offices");
 
       setOffices(res.data.offices || []);
     } catch (err) {
-      showToast("error", "Failed to load office list");
-      console.error("Office list fetch error:", err);
+      showToast("error", "Failed to load office list", err);
     } finally {
       setOfficeLoading(false);
     }
   };
     fetchOffices();
   }, []);
-
 
 
   useEffect(() => {
@@ -120,7 +113,7 @@ const OfficeLogin = () => {
   const handleChange = (e) => {
     setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     }));
   };
 
@@ -164,10 +157,10 @@ const OfficeLogin = () => {
     try {
       setLoading(true);
 
-      const res = await axiosInstance.post("/auth/request-office-otp", {
+      const res = await axiosInstance.post("/office/request-otp", {
         officeId: formData.officeId,
         responsiblePersonName: formData.responsiblePersonName,
-        contactNumber: formData.contactNumber
+        contactNumber: formData.contactNumber,
       });
 
       const maskedEmail = res.data.maskedEmail
@@ -205,9 +198,9 @@ const OfficeLogin = () => {
     try {
       setLoading(true);
 
-      const res = await axiosInstance.post("/auth/verify-office-otp", {
+      const res = await axiosInstance.post("/office/verify-otp", {
         officeId: formData.officeId,
-        otp
+        otp,
       });
 
       localStorage.setItem("officeToken", res.data.token);
@@ -216,8 +209,8 @@ const OfficeLogin = () => {
       showToast("success", res.data.message || "OTP verified successfully");
 
       setTimeout(() => {
-        navigate("/dashboard");
-      }, 800);
+        navigate("/ems/office/dashboard");
+      }, 700);
     } catch (err) {
       showToast(
         "error",
@@ -249,10 +242,10 @@ const OfficeLogin = () => {
     try {
       setLoading(true);
 
-      const res = await axiosInstance.post("/auth/request-office-otp", {
+      const res = await axiosInstance.post("/office/request-otp", {
         officeId: formData.officeId,
         responsiblePersonName: formData.responsiblePersonName,
-        contactNumber: formData.contactNumber
+        contactNumber: formData.contactNumber,
       });
 
       const maskedEmail = res.data.maskedEmail
@@ -297,6 +290,13 @@ const OfficeLogin = () => {
 
           <p className="text-slate-500 mt-2">
             Election Staff Data Collection System
+          </p>
+        </div>
+
+        <div className="mt-6 bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <p className="text-sm text-slate-700">
+            This login is only for normal offices. OTP will be sent to the
+            official email of the selected office.
           </p>
         </div>
 
@@ -370,7 +370,7 @@ const OfficeLogin = () => {
 
                     setFormData((prev) => ({
                       ...prev,
-                      contactNumber: value
+                      contactNumber: value,
                     }));
                   }}
                   placeholder="98XXXXXXXX"
@@ -386,6 +386,14 @@ const OfficeLogin = () => {
               className="w-full bg-blue-600 text-white rounded-lg py-2.5 font-semibold hover:bg-blue-700 disabled:bg-blue-300"
             >
               {loading ? "Sending OTP..." : "Send OTP"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/ems/admin")}
+              className="w-full text-blue-600 font-semibold"
+            >
+              Go to Admin Login
             </button>
           </form>
         )}

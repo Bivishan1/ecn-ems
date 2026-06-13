@@ -38,6 +38,13 @@ const offices = [
     officialEmail: "kathmandu.office@example.com",
     role: "office",
     isActive: true
+  },
+   {
+    officeCode: "BAG-006",
+    officeName: "test, काठमाडौँ",
+    officialEmail: "bivishan8686@gmail.com",
+    role: "office",
+    isActive: true
   }
 ];
 

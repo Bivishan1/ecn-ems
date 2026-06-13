@@ -6,32 +6,32 @@ const officeSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      trim: true
+      trim: true,
     },
 
     officeName: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
 
     officialEmail: {
       type: String,
       required: true,
       lowercase: true,
-      trim: true
+      trim: true,
     },
 
     role: {
       type: String,
       enum: ["admin", "office"],
-      default: "office"
+      default: "office",
     },
 
     isActive: {
       type: Boolean,
-      default: true
-    }
+      default: true,
+    },
   },
   { timestamps: true }
 );

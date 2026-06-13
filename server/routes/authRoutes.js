@@ -10,6 +10,7 @@ const sendEmail = require("../utils/sendEmail");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 const router = express.Router();
+const AdminUser = require("../models/AdminUser");
 
 const generateOtp = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -561,6 +562,80 @@ router.get("/office-login-logs",protect, adminOnly, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch office login logs"
+    });
+  }
+});
+
+// admin login route
+router.post("/admin/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required"
+      });
+    }
+
+    const admin = await AdminUser.findOne({
+      email: email.toLowerCase(),
+      isActive: true
+    });
+
+    if (!admin) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password"
+      });
+    }
+
+    const isPasswordMatch = await bcrypt.compare(password, admin.password);
+
+    if (!isPasswordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password"
+      });
+    }
+
+    admin.loginCount += 1;
+    admin.lastLoginAt = new Date();
+    await admin.save();
+
+    const token = jwt.sign(
+      {
+        id: admin._id,
+        role: "admin",
+        authType: "admin"
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: process.env.ADMIN_JWT_EXPIRES_IN || "8h"
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Admin login successful",
+      token,
+      account: {
+        id: admin._id,
+        fullName: admin.fullName,
+        email: admin.email,
+        officeName: admin.officeName,
+        role: admin.role,
+        authType: "admin",
+        loginCount: admin.loginCount,
+        lastLoginAt: admin.lastLoginAt
+      }
+    });
+  } catch (error) {
+    console.error("Admin login error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Admin login failed"
     });
   }
 });

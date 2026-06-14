@@ -1,0 +1,61 @@
+PS C:\WINDOWS\system32> curl.exe -vI https://voterlist.election.gov.np/api/voters/search
+* Host voterlist.election.gov.np:443 was resolved.
+* IPv6: (none)
+* IPv4: 202.166.205.141
+*   Trying 202.166.205.141:443...
+* schannel: disabled automatic use of client certificate
+* ALPN: curl offers http/1.1
+* ALPN: server accepted http/1.1
+* Connected to voterlist.election.gov.np (202.166.205.141) port 443
+* using HTTP/1.x
+> HEAD /api/voters/search HTTP/1.1
+> Host: voterlist.election.gov.np
+> User-Agent: curl/8.13.0
+> Accept: */*
+>
+< HTTP/1.1 403 Forbidden
+HTTP/1.1 403 Forbidden
+< Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https://fonts.gstatic.com;form-action 'self';frame-ancestors 'self' * https: http:;img-src 'self' data: https:;object-src 'none';script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com;script-src-attr 'none';style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;upgrade-insecure-requests;connect-src 'self' ws: wss: *;frame-src 'self' * https://voterlist.election.gov.np http://voterlist.election.gov.np
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https://fonts.gstatic.com;form-action 'self';frame-ancestors 'self' * https: http:;img-src 'self' data: https:;object-src 'none';script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com;script-src-attr 'none';style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;upgrade-insecure-requests;connect-src 'self' ws: wss: *;frame-src 'self' * https://voterlist.election.gov.np http://voterlist.election.gov.np
+< Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Opener-Policy: same-origin
+< Cross-Origin-Resource-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+< Origin-Agent-Cluster: ?1
+Origin-Agent-Cluster: ?1
+< Referrer-Policy: no-referrer
+Referrer-Policy: no-referrer
+< Strict-Transport-Security: max-age=31536000; includeSubDomains
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+< X-Content-Type-Options: nosniff
+X-Content-Type-Options: nosniff
+< X-DNS-Prefetch-Control: off
+X-DNS-Prefetch-Control: off
+< X-Download-Options: noopen
+X-Download-Options: noopen
+< X-Permitted-Cross-Domain-Policies: none
+X-Permitted-Cross-Domain-Policies: none
+< X-XSS-Protection: 0
+X-XSS-Protection: 0
+< X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+< RateLimit-Policy: 100;w=900
+RateLimit-Policy: 100;w=900
+< RateLimit: limit=100, remaining=98, reset=887
+RateLimit: limit=100, remaining=98, reset=887
+< Content-Type: text/html; charset=utf-8
+Content-Type: text/html; charset=utf-8
+< Content-Length: 989
+Content-Length: 989
+< ETag: W/"3dd-KQOgBRUrpSjdEXO9UedwhgYLErE"
+ETag: W/"3dd-KQOgBRUrpSjdEXO9UedwhgYLErE"
+< Date: Sun, 14 Jun 2026 14:03:45 GMT
+Date: Sun, 14 Jun 2026 14:03:45 GMT
+< Connection: keep-alive
+Connection: keep-alive
+< Keep-Alive: timeout=5
+Keep-Alive: timeout=5
+<
+
+* Connection #0 to host voterlist.election.gov.np left intact
+PS C:\WINDOWS\system32>

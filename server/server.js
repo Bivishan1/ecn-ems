@@ -6,6 +6,7 @@ const connectDB = require("./config/db");
 
 const adminRoutes = require("./routes/adminRoutes");
 const officeRoutes = require("./routes/officeRoutes");
+const employeeRoutes = require("./routes/employeeRoutes");
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/admin", adminRoutes);
 app.use("/api/office", officeRoutes);
+app.use("/api/employee", employeeRoutes);
 
 const PORT = process.env.PORT || 5000;
 

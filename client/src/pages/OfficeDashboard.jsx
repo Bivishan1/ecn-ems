@@ -2,12 +2,16 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import Toast from "../components/Toast";
+import EmployeeEntryForm from "../components/EmployeeEntryForm";
 
 const OfficeDashboard = () => {
   const navigate = useNavigate();
 
   const [account, setAccount] = useState(null);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [employeeLoading, setEmployeeLoading] = useState(true);
+  const [showEmployeeForm, setShowEmployeeForm] = useState(true);
 
   const [toast, setToast] = useState({
     type: "",
@@ -22,34 +26,81 @@ const OfficeDashboard = () => {
     setToast({ type, message });
   };
 
-  useEffect(() => {
-    const fetchOfficeProfile = async () => {
-      try {
-        setLoading(true);
+   useEffect(() => {
+  const fetchOfficeProfile = async () => {
+    try {
+      setLoading(true);
 
-        const profileRes = await axiosInstance.get("/office/me");
+      const profileRes = await axiosInstance.get("/office/me");
 
-        setAccount(profileRes.data.account);
-      } catch (err) {
-        console.error(
-          "Office dashboard error:",
-          err.response?.data || err.message,
-        );
+      setAccount(profileRes.data.account);
+    } catch (err) {
+      console.error("Office dashboard error:", err.response?.data || err.message);
 
-        localStorage.removeItem("officeToken");
-        localStorage.removeItem("officeAccount");
+      localStorage.removeItem("officeToken");
+      localStorage.removeItem("officeAccount");
 
-        showToast("error", err.response?.data?.message || "Session expired");
+      showToast("error", err.response?.data?.message || "Session expired");
 
-        setTimeout(() => {
-          navigate("/ems/office");
-        }, 1000);
-      } finally {
-        setLoading(false);
-      }
-    };
+      setTimeout(() => {
+        navigate("/ems/office");
+      }, 1000);
+    } finally {
+      setLoading(false);
+    }
+  };
+   
     fetchOfficeProfile();
   }, [navigate]);
+
+
+const loadOfficeEmployees = async () => {
+  const res = await axiosInstance.get("/employee/my-office");
+  setEmployees(res.data.employees || []);
+};
+
+useEffect(() => {
+  let cancelled = false;
+
+  const init = async () => {
+    try {
+      const res = await axiosInstance.get("/employee/my-office");
+
+      if (!cancelled) {
+        setEmployees(res.data.employees || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      if (!cancelled) {
+        setEmployeeLoading(false);
+      }
+    }
+  };
+
+  init();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
+const fetchOfficeEmployees = async () => {
+  try {
+    setEmployeeLoading(true);
+    await loadOfficeEmployees();
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setEmployeeLoading(false);
+  }
+};
+
+const handleEmployeeSaved = async () => {
+  await fetchOfficeEmployees();
+  setShowEmployeeForm(false);
+  showToast("success", "Employee list updated successfully");
+};
 
   const logout = () => {
     localStorage.removeItem("officeToken");
@@ -65,23 +116,53 @@ const OfficeDashboard = () => {
     );
   }
 
+  const totalEmployees = employees.length;
+
+  const verifiedEmployees = employees.filter((employee) => {
+    return employee.isVoterVerified === true;
+  }).length;
+
+  const latestEmployee =
+    employees.length > 0
+      ? employees.reduce((latest, current) => {
+          return new Date(current.createdAt) > new Date(latest.createdAt)
+            ? current
+            : latest;
+        }, employees[0])
+      : null;
+
   return (
     <div className="min-h-screen bg-slate-100">
       <Toast type={toast.type} message={toast.message} onClose={closeToast} />
 
-      <div className="bg-white shadow px-6 py-4 flex justify-between items-center">
+      <div className="bg-white shadow px-6 py-4 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Office Dashboard</h1>
+          <h1 className="text-xl font-bold text-slate-800">
+            Office Dashboard
+          </h1>
 
-          <p className="text-sm text-slate-500">Employee Record Entry Panel</p>
+          <p className="text-sm text-slate-500">
+            Employee Record Entry Panel
+          </p>
         </div>
 
-        <button
-          onClick={logout}
-          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-        >
-          Logout
-        </button>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setShowEmployeeForm((prev) => !prev)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            {showEmployeeForm ? "Hide Entry Form" : "Add Employee"}
+          </button>
+
+          <button
+            type="button"
+            onClick={logout}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       <div className="p-6 space-y-6">
@@ -132,32 +213,148 @@ const OfficeDashboard = () => {
           </div>
         </div>
 
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
-          <h3 className="font-semibold text-green-800">
-            Next Module: Employee Entry
-          </h3>
-
-          <p className="text-green-700 mt-2">
-            This office will enter its employee records here. Admin office will
-            receive and manage submitted records.
-          </p>
-        </div>
-
         <div className="grid md:grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl shadow p-5">
             <p className="text-sm text-slate-500">Employees Entered</p>
-            <p className="text-3xl font-bold text-slate-800 mt-2">0</p>
+            <p className="text-3xl font-bold text-slate-800 mt-2">
+              {totalEmployees}
+            </p>
           </div>
 
           <div className="bg-white rounded-2xl shadow p-5">
-            <p className="text-sm text-slate-500">Valid Records</p>
-            <p className="text-3xl font-bold text-slate-800 mt-2">0</p>
+            <p className="text-sm text-slate-500">Verified Voter Records</p>
+            <p className="text-3xl font-bold text-green-700 mt-2">
+              {verifiedEmployees}
+            </p>
           </div>
 
           <div className="bg-white rounded-2xl shadow p-5">
             <p className="text-sm text-slate-500">Submission Status</p>
-            <p className="text-xl font-bold text-orange-600 mt-2">Pending</p>
+            <p className="text-xl font-bold text-orange-600 mt-2">
+              {totalEmployees > 0 ? "In Progress" : "Pending"}
+            </p>
           </div>
+        </div>
+
+        {latestEmployee && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
+            <h3 className="font-semibold text-blue-800">
+              Latest Employee Entry
+            </h3>
+
+            <p className="text-blue-700 mt-2">
+              {latestEmployee.firstName} {latestEmployee.middleName}{" "}
+              {latestEmployee.lastName} was added on{" "}
+              {new Date(latestEmployee.createdAt).toLocaleString()}.
+            </p>
+          </div>
+        )}
+
+        {showEmployeeForm && (
+          <EmployeeEntryForm onSaved={handleEmployeeSaved} />
+        )}
+
+        <div className="bg-white rounded-2xl shadow p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">
+                Employee Records
+              </h2>
+
+              <p className="text-sm text-slate-500 mt-1">
+                These are records submitted by your office only.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={fetchOfficeEmployees}
+              disabled={employeeLoading}
+              className="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-900 disabled:bg-slate-400"
+            >
+              {employeeLoading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-slate-500">
+                  <th className="py-3 pr-4">Name</th>
+                  <th className="py-3 pr-4">Voter No</th>
+                  <th className="py-3 pr-4">DOB</th>
+                  <th className="py-3 pr-4">Address</th>
+                  <th className="py-3 pr-4">Position</th>
+                  <th className="py-3 pr-4">Verification</th>
+                  <th className="py-3 pr-4">Added At</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {employeeLoading ? (
+                  <tr>
+                    <td colSpan="7" className="py-4 text-slate-500">
+                      Loading employee records...
+                    </td>
+                  </tr>
+                ) : employees.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="py-4 text-slate-500">
+                      No employee records added yet.
+                    </td>
+                  </tr>
+                ) : (
+                  employees.map((employee) => (
+                    <tr key={employee._id} className="border-b">
+                      <td className="py-3 pr-4">
+                        {employee.firstName} {employee.middleName}{" "}
+                        {employee.lastName}
+                      </td>
+
+                      <td className="py-3 pr-4">{employee.voterNo}</td>
+
+                      <td className="py-3 pr-4">{employee.dob}</td>
+
+                      <td className="py-3 pr-4">{employee.address}</td>
+
+                      <td className="py-3 pr-4">
+                        {employee.position || "N/A"}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {employee.isVoterVerified ? (
+                          <span className="text-green-700 font-medium">
+                            Verified
+                          </span>
+                        ) : (
+                          <span className="text-orange-600 font-medium">
+                            Pending
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {employee.createdAt
+                          ? new Date(employee.createdAt).toLocaleString()
+                          : "N/A"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
+          <h3 className="font-semibold text-green-800">
+            Employee Entry Rule
+          </h3>
+
+          <p className="text-green-700 mt-2">
+            Employee records can be saved only after voter number and date of
+            birth are verified from the voter database.
+          </p>
         </div>
       </div>
     </div>

@@ -9,24 +9,7 @@ const employeeSchema = new mongoose.Schema(
       index: true,
     },
 
-    firstName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    middleName: {
-      type: String,
-      trim: true,
-    },
-
-    lastName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    voterNo: {
+    fullName: {
       type: String,
       required: true,
       trim: true,
@@ -38,14 +21,59 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
     },
 
-    address: {
+    voterNo: {
       type: String,
       required: true,
       trim: true,
     },
 
-    phone: {
+    citizenshipNo: {
       type: String,
+      trim: true,
+    },
+
+    citizenshipIssueDistrict: {
+      type: String,
+      trim: true,
+    },
+
+    parentFullName: {
+      type: String,
+      trim: true,
+    },
+
+    spouseFullName: {
+      type: String,
+      trim: true,
+    },
+
+    officeFullName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    officeAddress: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    homeDistrict: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    homePalika: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    homeWardNo: {
+      type: String,
+      required: true,
       trim: true,
     },
 
@@ -79,46 +107,38 @@ const employeeSchema = new mongoose.Schema(
       type: Date,
     },
 
+    verifiedVoterDetails: {
+      voterNumber: String,
+      serialNo: String,
+      fullName: String,
+      nameEnglish: String,
+      citizenshipNumber: String,
+      dob: String,
+      gender: String,
+      age: String,
+      fatherName: String,
+      motherName: String,
+      spouseName: String,
+      provinceId: String,
+      districtId: String,
+      municipalityId: String,
+      wardNo: String,
+      pollingLocationId: String,
+      longitude: String,
+      latitude: String,
+      fConstituency: String,
+      sConstituency: String,
+      regCentreLoc: String,
+    },
+
     voterVerificationResponse: {
       type: Object,
       select: false,
     },
-    verifiedVoterDetails: {
-  voterNumber: String,
-  serialNo: String,
-  fullName: String,
-  nameEnglish: String,
-  citizenshipNumber: String,
-  dob: String,
-  gender: String,
-  age: String,
-  fatherName: String,
-  motherName: String,
-  spouseName: String,
-  provinceId: String,
-  districtId: String,
-  municipalityId: String,
-  wardNo: String,
-  pollingLocationId: String,
-  longitude: String,
-  latitude: String,
-  fConstituency: String,
-  sConstituency: String,
-  regCentreLoc: String,
-},
   },
   { timestamps: true }
 );
 
-employeeSchema.index(
-  {
-    voterNo: 1,
-  },
-  {
-    unique: true,
-  }
-);
-
-
+employeeSchema.index({ voterNo: 1 }, { unique: true });
 
 module.exports = mongoose.model("Employee", employeeSchema);

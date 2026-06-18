@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import Toast from "../components/Toast";
@@ -132,6 +132,16 @@ const OfficeLogin = () => {
 
     return "";
   };
+
+const otpInputRef = useRef(null);
+
+useEffect(() => {
+  if (step === "otp") {
+    setTimeout(() => {
+      otpInputRef.current?.focus();
+    }, 100);
+  }
+}, [step]);
 
   const handleRequestOtp = async (e) => {
     e.preventDefault();
@@ -434,6 +444,7 @@ const OfficeLogin = () => {
               </label>
 
               <input
+              ref={otpInputRef}
                 type="text"
                 value={otp}
                 onChange={(e) => {

@@ -131,6 +131,20 @@ const handleEmployeeSaved = async () => {
         }, employees[0])
       : null;
 
+
+      const submitOfficeRecords = async () => {
+  try {
+    const res = await axiosInstance.post("/employee/submit-office-records");
+
+    showToast("success", res.data.message || "Records submitted successfully");
+  } catch (err) {
+    showToast(
+      "error",
+      err.response?.data?.message || "Failed to submit records"
+    );
+  }
+};
+
   return (
     <div className="min-h-screen bg-slate-100">
       <Toast type={toast.type} message={toast.message} onClose={closeToast} />
@@ -154,6 +168,15 @@ const handleEmployeeSaved = async () => {
           >
             {showEmployeeForm ? "Hide Entry Form" : "Add Employee"}
           </button>
+
+          <button
+  type="button"
+  onClick={submitOfficeRecords}
+  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+>
+  Submit Records
+</button>
+
 
           <button
             type="button"
@@ -243,8 +266,7 @@ const handleEmployeeSaved = async () => {
             </h3>
 
             <p className="text-blue-700 mt-2">
-              {latestEmployee.firstName} {latestEmployee.middleName}{" "}
-              {latestEmployee.lastName} was added on{" "}
+              {latestEmployee.fullName} was added on{" "}
               {new Date(latestEmployee.createdAt).toLocaleString()}.
             </p>
           </div>
@@ -307,8 +329,7 @@ const handleEmployeeSaved = async () => {
                   employees.map((employee) => (
                     <tr key={employee._id} className="border-b">
                       <td className="py-3 pr-4">
-                        {employee.firstName} {employee.middleName}{" "}
-                        {employee.lastName}
+                        {employee.fullName}
                       </td>
 
                       <td className="py-3 pr-4">{employee.voterNo}</td>

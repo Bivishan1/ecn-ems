@@ -632,7 +632,7 @@ const deleteEmployee = async (employeeId) => {
               <td className="py-3 pr-4">{employee.voterNo}</td>
 
               <td className="py-3 pr-4">
-                {employee.citizenshipNo || "N/A"} /{" "}
+                {employee.citizenshipNumber || employee.verifiedVoterDetails?.citizenshipNumber || employee.citizenshipNo || "N/A"} /{" "}
                 {employee.citizenshipIssueDistrict || "N/A"}
               </td>
 
@@ -853,7 +853,7 @@ const deleteEmployee = async (employeeId) => {
                 <td className="py-3 pr-4">{employee.voterNo}</td>
 
                 <td className="py-3 pr-4">
-                  {employee.citizenshipNo || "N/A"} /{" "}
+                  {employee.citizenshipNumber || employee.verifiedVoterDetails?.citizenshipNumber || employee.citizenshipNo || "N/A"} /{" "}
                   {employee.citizenshipIssueDistrict || "N/A"}
                 </td>
 

@@ -27,6 +27,11 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
     },
 
+    citizenshipNumber: {
+  type: String,
+  trim: true,
+},
+
     citizenshipNo: {
       type: String,
       trim: true,

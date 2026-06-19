@@ -64,6 +64,21 @@ const EmployeeEntryForm = ({ onSaved }) => {
     return /^\d{4}-\d{2}-\d{2}$/.test(value);
   };
 
+  // auto hyphen in DOB input field
+  const formatDobInput = (value = "") => {
+    const digitsOnly = value.replace(/\D/g, "").slice(0, 8);
+
+    if (digitsOnly.length <= 4) {
+      return digitsOnly;
+    }
+
+    if (digitsOnly.length <= 6) {
+      return `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4)}`;
+    }
+
+    return `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4, 6)}-${digitsOnly.slice(6, 8)}`;
+  };
+
   const unicodeOnlyFields = [
     { key: "fullName", label: "Full name" },
     { key: "citizenshipIssueDistrict", label: "Citizenship issue district" },
@@ -179,9 +194,20 @@ const EmployeeEntryForm = ({ onSaved }) => {
      * If voter no or DOB changes after verification,
      * previous verification becomes invalid.
      */
-    if (name === "voterNo" || name === "dob") {
+
+    if (name === "dob") {
+      const formattedDob = formatDobInput(value);
+
       resetApiFilledFields({
-        [name]: value,
+        dob: formattedDob,
+      });
+
+      return;
+    }
+
+    if (name === "voterNo") {
+      resetApiFilledFields({
+        voterNo: value,
       });
 
       return;
@@ -246,7 +272,7 @@ const EmployeeEntryForm = ({ onSaved }) => {
       showToast(
         "success",
         res.data.message ||
-          "Voter verified successfully. Please review and edit fields if needed."
+          "Voter verified successfully. Please review and edit fields if needed.",
       );
     } catch (err) {
       console.error("Verify voter error:", err.response?.data || err.message);
@@ -255,7 +281,7 @@ const EmployeeEntryForm = ({ onSaved }) => {
 
       showToast(
         "error",
-        err.response?.data?.message || "Failed to verify voter."
+        err.response?.data?.message || "Failed to verify voter.",
       );
     } finally {
       setVerifying(false);
@@ -304,7 +330,7 @@ const EmployeeEntryForm = ({ onSaved }) => {
 
       showToast(
         "success",
-        res.data.message || "Employee record saved successfully."
+        res.data.message || "Employee record saved successfully.",
       );
 
       setFormData(initialFormData);
@@ -319,7 +345,7 @@ const EmployeeEntryForm = ({ onSaved }) => {
 
       showToast(
         "error",
-        err.response?.data?.message || "Failed to save employee record."
+        err.response?.data?.message || "Failed to save employee record.",
       );
     } finally {
       setSaving(false);
@@ -373,9 +399,9 @@ const EmployeeEntryForm = ({ onSaved }) => {
         <p className="font-semibold">Unicode Notice</p>
 
         <p className="mt-1">
-          कृपया नाम, कार्यालयको नाम, ठेगाना, जिल्ला, पालिका र पद सम्बन्धी
-          विवरण नेपाली Unicode मा मात्र लेख्नुहोस्। Roman English मा लेखेमा
-          record save हुँदैन।
+          कृपया नाम, कार्यालयको नाम, ठेगाना, जिल्ला, पालिका र पद सम्बन्धी विवरण
+          नेपाली Unicode मा मात्र लेख्नुहोस्। Roman English मा लेखेमा record
+          save हुँदैन।
         </p>
       </div>
 
@@ -405,6 +431,7 @@ const EmployeeEntryForm = ({ onSaved }) => {
                 name="dob"
                 value={formData.dob}
                 onChange={handleChange}
+                maxLength={10}
                 placeholder="yyyy-mm-dd"
                 className={inputClass}
               />
@@ -624,9 +651,7 @@ const EmployeeEntryForm = ({ onSaved }) => {
         </div>
 
         <div className="border border-slate-200 rounded-2xl p-5">
-          <h3 className="font-semibold text-slate-800 mb-4">
-            Service Details
-          </h3>
+          <h3 className="font-semibold text-slate-800 mb-4">Service Details</h3>
 
           <div className="grid md:grid-cols-3 gap-4">
             <div>

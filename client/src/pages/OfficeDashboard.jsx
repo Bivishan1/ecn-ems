@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import {useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import Toast from "../components/Toast";
@@ -9,9 +9,13 @@ const OfficeDashboard = () => {
 
   const [account, setAccount] = useState(null);
   const [employees, setEmployees] = useState([]);
+
   const [loading, setLoading] = useState(true);
-  const [employeeLoading, setEmployeeLoading] = useState(true);
+  const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [submittingRecords, setSubmittingRecords] = useState(false);
+
   const [showEmployeeForm, setShowEmployeeForm] = useState(true);
+  const [submissionInfo, setSubmissionInfo] = useState(null);
 
   const [toast, setToast] = useState({
     type: "",
@@ -19,23 +23,25 @@ const OfficeDashboard = () => {
   });
 
   const closeToast = () => {
-    setToast({ type: "", message: "" });
+    setToast({
+      type: "",
+      message: "",
+    });
   };
 
-  const showToast = (type, message) => {
-    setToast({ type, message });
-  };
+  const showToast = useCallback( (type, message) => {
+    setToast({
+      type,
+      message,
+    });
+  }, []);
 
-   useEffect(() => {
-  const fetchOfficeProfile = async () => {
+  const fetchOfficeProfile = useCallback ( async () => {
     try {
-      setLoading(true);
-
       const profileRes = await axiosInstance.get("/office/me");
-
       setAccount(profileRes.data.account);
     } catch (err) {
-      console.error("Office dashboard error:", err.response?.data || err.message);
+      console.error("Office profile error:", err.response?.data || err.message);
 
       localStorage.removeItem("officeToken");
       localStorage.removeItem("officeAccount");
@@ -45,62 +51,82 @@ const OfficeDashboard = () => {
       setTimeout(() => {
         navigate("/ems/office");
       }, 1000);
+    }
+  }, [navigate, showToast]);
+
+  const fetchOfficeEmployees = useCallback( async () => {
+    try {
+      setEmployeeLoading(true);
+
+      const res = await axiosInstance.get("/employee/my-office");
+  console.log('employees response:',res.data.employees);
+      setEmployees(res.data.employees || []);
+    
+    } catch (err) {
+      console.error("Fetch employee error:", err.response?.data || err.message);
+
+      showToast(
+        "error",
+        err.response?.data?.message || "Failed to fetch employee records"
+      );
+    } finally {
+      setEmployeeLoading(false);
+    }
+  }, [showToast]);
+
+    useEffect(() => {
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      await fetchOfficeProfile();
+      await fetchOfficeEmployees();
     } finally {
       setLoading(false);
     }
   };
-   
-    fetchOfficeProfile();
-  }, [navigate]);
 
 
-const loadOfficeEmployees = async () => {
-  const res = await axiosInstance.get("/employee/my-office");
-  setEmployees(res.data.employees || []);
-};
+    fetchDashboardData();
+  }, [fetchOfficeEmployees, fetchOfficeProfile]);
 
-useEffect(() => {
-  let cancelled = false;
+  const handleEmployeeSaved = () => {
+    fetchOfficeEmployees();
+    setShowEmployeeForm(false);
+    setSubmissionInfo(null);
 
-  const init = async () => {
+    showToast("success", "Employee list updated successfully");
+  };
+
+  const submitOfficeRecords = async () => {
+    const confirmSubmit = window.confirm(
+      "Are you sure you want to submit all employee records? After submission, admin will be able to review this office's records."
+    );
+
+    if (!confirmSubmit) return;
+
     try {
-      const res = await axiosInstance.get("/employee/my-office");
+      setSubmittingRecords(true);
 
-      if (!cancelled) {
-        setEmployees(res.data.employees || []);
-      }
+      const res = await axiosInstance.post("/employee/submit-office-records");
+
+      setSubmissionInfo(res.data.submission || null);
+
+      showToast(
+        "success",
+        res.data.message || "Office employee records submitted successfully"
+      );
     } catch (err) {
-      console.error(err);
+      console.error("Submit records error:", err.response?.data || err.message);
+
+      showToast(
+        "error",
+        err.response?.data?.message || "Failed to submit office records"
+      );
     } finally {
-      if (!cancelled) {
-        setEmployeeLoading(false);
-      }
+      setSubmittingRecords(false);
     }
   };
-
-  init();
-
-  return () => {
-    cancelled = true;
-  };
-}, []);
-
-const fetchOfficeEmployees = async () => {
-  try {
-    setEmployeeLoading(true);
-    await loadOfficeEmployees();
-  } catch (err) {
-    console.error(err);
-  } finally {
-    setEmployeeLoading(false);
-  }
-};
-
-const handleEmployeeSaved = async () => {
-  await fetchOfficeEmployees();
-  setShowEmployeeForm(false);
-  showToast("success", "Employee list updated successfully");
-};
 
   const logout = () => {
     localStorage.removeItem("officeToken");
@@ -118,32 +144,35 @@ const handleEmployeeSaved = async () => {
 
   const totalEmployees = employees.length;
 
-  const verifiedEmployees = employees.filter((employee) => {
-    return employee.isVoterVerified === true;
-  }).length;
+  const verifiedEmployees = employees.filter(
+    (employee) => employee.isVoterVerified === true
+  ).length;
+
+  const unverifiedEmployees = totalEmployees - verifiedEmployees;
 
   const latestEmployee =
     employees.length > 0
-      ? employees.reduce((latest, current) => {
-          return new Date(current.createdAt) > new Date(latest.createdAt)
+      ? employees.reduce((latest, current) =>
+          new Date(current.createdAt) > new Date(latest.createdAt)
             ? current
-            : latest;
-        }, employees[0])
+            : latest
+        )
       : null;
 
+  const canSubmitRecords =
+    totalEmployees > 0 && totalEmployees === verifiedEmployees;
 
-      const submitOfficeRecords = async () => {
-  try {
-    const res = await axiosInstance.post("/employee/submit-office-records");
+  const submissionStatusText = submissionInfo
+    ? "Submitted"
+    : totalEmployees > 0
+      ? "Records Added"
+      : "No Records Yet";
 
-    showToast("success", res.data.message || "Records submitted successfully");
-  } catch (err) {
-    showToast(
-      "error",
-      err.response?.data?.message || "Failed to submit records"
-    );
-  }
-};
+  const submissionStatusClass = submissionInfo
+    ? "text-green-700"
+    : totalEmployees > 0
+      ? "text-blue-700"
+      : "text-orange-600";
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -160,7 +189,7 @@ const handleEmployeeSaved = async () => {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             type="button"
             onClick={() => setShowEmployeeForm((prev) => !prev)}
@@ -170,13 +199,13 @@ const handleEmployeeSaved = async () => {
           </button>
 
           <button
-  type="button"
-  onClick={submitOfficeRecords}
-  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
->
-  Submit Records
-</button>
-
+            type="button"
+            onClick={submitOfficeRecords}
+            disabled={!canSubmitRecords || submittingRecords}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:bg-slate-400"
+          >
+            {submittingRecords ? "Submitting..." : "Submit Records"}
+          </button>
 
           <button
             type="button"
@@ -236,7 +265,7 @@ const handleEmployeeSaved = async () => {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl shadow p-5">
             <p className="text-sm text-slate-500">Employees Entered</p>
             <p className="text-3xl font-bold text-slate-800 mt-2">
@@ -252,12 +281,58 @@ const handleEmployeeSaved = async () => {
           </div>
 
           <div className="bg-white rounded-2xl shadow p-5">
-            <p className="text-sm text-slate-500">Submission Status</p>
-            <p className="text-xl font-bold text-orange-600 mt-2">
-              {totalEmployees > 0 ? "In Progress" : "Pending"}
+            <p className="text-sm text-slate-500">Unverified Records</p>
+            <p className="text-3xl font-bold text-red-600 mt-2">
+              {unverifiedEmployees}
             </p>
           </div>
+
+          <div className="bg-white rounded-2xl shadow p-5">
+            <p className="text-sm text-slate-500">Submission Status</p>
+            <p className={`text-xl font-bold mt-2 ${submissionStatusClass}`}>
+              {submissionStatusText}
+            </p>
+
+            {submissionInfo?.submittedAt && (
+              <p className="text-xs text-slate-500 mt-1">
+                {new Date(submissionInfo.submittedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
         </div>
+
+        {!canSubmitRecords && totalEmployees > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 text-orange-700">
+            <h3 className="font-semibold">Submission Blocked</h3>
+
+            <p className="text-sm mt-1">
+              All employee records must be voter verified before final
+              submission.
+            </p>
+          </div>
+        )}
+
+        {canSubmitRecords && !submissionInfo && (
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-5 text-green-700">
+            <h3 className="font-semibold">Ready to Submit</h3>
+
+            <p className="text-sm mt-1">
+              All employee records are verified. You can now submit records to
+              admin.
+            </p>
+          </div>
+        )}
+
+        {submissionInfo && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 text-blue-700">
+            <h3 className="font-semibold">Records Submitted</h3>
+
+            <p className="text-sm mt-1">
+              Your office employee records have been submitted to admin for
+              review.
+            </p>
+          </div>
+        )}
 
         {latestEmployee && (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
@@ -267,14 +342,15 @@ const handleEmployeeSaved = async () => {
 
             <p className="text-blue-700 mt-2">
               {latestEmployee.fullName} was added on{" "}
-              {new Date(latestEmployee.createdAt).toLocaleString()}.
+              {latestEmployee.createdAt
+                ? new Date(latestEmployee.createdAt).toLocaleString()
+                : "N/A"}
+              .
             </p>
           </div>
         )}
 
-        {showEmployeeForm && (
-          <EmployeeEntryForm onSaved={handleEmployeeSaved} />
-        )}
+        {showEmployeeForm && <EmployeeEntryForm onSaved={handleEmployeeSaved} />}
 
         <div className="bg-white rounded-2xl shadow p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -284,7 +360,7 @@ const handleEmployeeSaved = async () => {
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                These are records submitted by your office only.
+                These records are submitted by your office only.
               </p>
             </div>
 
@@ -302,10 +378,15 @@ const handleEmployeeSaved = async () => {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-slate-500">
-                  <th className="py-3 pr-4">Name</th>
-                  <th className="py-3 pr-4">Voter No</th>
+                  <th className="py-3 pr-4">Full Name</th>
                   <th className="py-3 pr-4">DOB</th>
-                  <th className="py-3 pr-4">Address</th>
+                  <th className="py-3 pr-4">Voter No</th>
+                  <th className="py-3 pr-4">Citizenship / District</th>
+                  <th className="py-3 pr-4">Parent Name</th>
+                  <th className="py-3 pr-4">Spouse Name</th>
+                  <th className="py-3 pr-4">Office Full Name</th>
+                  <th className="py-3 pr-4">Office Address</th>
+                  <th className="py-3 pr-4">Home</th>
                   <th className="py-3 pr-4">Position</th>
                   <th className="py-3 pr-4">Verification</th>
                   <th className="py-3 pr-4">Added At</th>
@@ -315,13 +396,13 @@ const handleEmployeeSaved = async () => {
               <tbody>
                 {employeeLoading ? (
                   <tr>
-                    <td colSpan="7" className="py-4 text-slate-500">
+                    <td colSpan="12" className="py-4 text-slate-500">
                       Loading employee records...
                     </td>
                   </tr>
                 ) : employees.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="py-4 text-slate-500">
+                    <td colSpan="12" className="py-4 text-slate-500">
                       No employee records added yet.
                     </td>
                   </tr>
@@ -329,14 +410,43 @@ const handleEmployeeSaved = async () => {
                   employees.map((employee) => (
                     <tr key={employee._id} className="border-b">
                       <td className="py-3 pr-4">
-                        {employee.fullName}
+                        {employee.fullName || "N/A"}
                       </td>
 
-                      <td className="py-3 pr-4">{employee.voterNo}</td>
+                      <td className="py-3 pr-4">{employee.dob || "N/A"}</td>
 
-                      <td className="py-3 pr-4">{employee.dob}</td>
+                      <td className="py-3 pr-4">
+                        {employee.voterNo || "N/A"}
+                      </td>
 
-                      <td className="py-3 pr-4">{employee.address}</td>
+                      <td className="py-3 pr-4">
+                        {employee.citizenshipNumber ||
+    employee.verifiedVoterDetails?.citizenshipNumber ||
+    employee.citizenshipNo || "N/A"} /{" "}
+                        {employee.citizenshipIssueDistrict || "N/A"}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {employee.parentFullName || "N/A"}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {employee.spouseFullName || "N/A"}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {employee.officeFullName || "N/A"}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {employee.officeAddress || "N/A"}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {employee.homeDistrict || "N/A"},{" "}
+                        {employee.homePalika || "N/A"} -{" "}
+                        {employee.homeWardNo || "N/A"}
+                      </td>
 
                       <td className="py-3 pr-4">
                         {employee.position || "N/A"}

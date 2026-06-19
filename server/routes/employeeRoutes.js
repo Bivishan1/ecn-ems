@@ -243,7 +243,7 @@ router.post("/", protect, officeOnly, async (req, res) => {
       dob: voter.dob || dob,
       voterNo: voter.voterNumber || voterNo,
 
-      citizenshipNo: clean(req.body.citizenshipNo) || voter.serialNo || "",
+      citizenshipNumber: clean(req.body.citizenshipNumber) || voter.citizenshipNumber || "",
       citizenshipIssueDistrict:
         clean(req.body.citizenshipIssueDistrict) || voter.districtId || "",
 
@@ -488,7 +488,7 @@ router.get(
         { header: "Full Name", key: "fullName", width: 30 },
         { header: "DOB", key: "dob", width: 15 },
         { header: "Voter No", key: "voterNo", width: 15 },
-        { header: "Citizenship No", key: "citizenshipNo", width: 20 },
+        { header: "Citizenship No", key: "citizenshipNumber", width: 20 },
         { header: "Issue District", key: "citizenshipIssueDistrict", width: 22 },
         { header: "Parent Full Name", key: "parentFullName", width: 30 },
         { header: "Spouse Full Name", key: "spouseFullName", width: 30 },
@@ -511,7 +511,8 @@ router.get(
           fullName: employee.fullName || "",
           dob: employee.dob || "",
           voterNo: employee.voterNo || "",
-          citizenshipNo: employee.citizenshipNo || "",
+          citizenshipNumber: employee.citizenshipNumber || employee.verifiedVoterDetails?.citizenshipNumber ||
+  employee.citizenshipNo || "",
           citizenshipIssueDistrict: employee.citizenshipIssueDistrict || "",
           parentFullName: employee.parentFullName || "",
           spouseFullName: employee.spouseFullName || "",
@@ -604,7 +605,7 @@ router.put("/admin/:employeeId", protect, adminOnly, async (req, res) => {
 
     const allowedUpdates = {
       fullName: req.body.fullName,
-      citizenshipNo: req.body.citizenshipNo,
+      citizenshipNumber: req.body.citizenshipNumber,
       citizenshipIssueDistrict: req.body.citizenshipIssueDistrict,
       parentFullName: req.body.parentFullName,
       spouseFullName: req.body.spouseFullName,

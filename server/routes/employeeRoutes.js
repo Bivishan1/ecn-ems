@@ -1,9 +1,14 @@
+
 const express = require("express");
 const ExcelJS = require("exceljs");
 
 const Employee = require("../models/Employee");
 const OfficeSubmission = require("../models/OfficeSubmission");
-const { protect, officeOnly, adminOnly } = require("../middleware/authMiddleware");
+const {
+  protect,
+  officeOnly,
+  adminOnly,
+} = require("../middleware/authMiddleware");
 const { verifyVoterFromElectionApi } = require("../utils/verifyVoter");
 
 const router = express.Router();
@@ -19,6 +24,24 @@ const isValidDateFormat = (value = "") => {
 const hasEnglishLetters = (value = "") => {
   return /[A-Za-z]/.test(value);
 };
+
+// helper functions
+    const getCitizenshipNumber = (employee = {}) => {
+      return (
+        employee.citizenshipNumber ||
+        employee.verifiedVoterDetails?.citizenshipNumber ||
+        employee.citizenshipNo ||
+        ""
+      );
+    };
+
+ const toNepaliDigits = (value = "") => {
+      const nepaliDigits = ["०", "१", "२", "३", "४", "५", "६", "७", "८", "९"];
+
+      return value
+        .toString()
+        .replace(/[0-9]/g, (digit) => nepaliDigits[Number(digit)]);
+    };
 
 const unicodeOnlyFields = [
   { key: "fullName", label: "Full name" },
@@ -78,6 +101,24 @@ const getApiErrorStatusCode = (status = "") => {
   return 400;
 };
 
+const getOfficeNameWithoutAddress = (officeName = "") => {
+  const parts = officeName
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts[0] || officeName || "";
+};
+
+const getOfficeAddressFromOfficeName = (officeName = "") => {
+  const parts = officeName
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.length > 1 ? parts[parts.length - 1] : "";
+};
+
 /**
  * Office verifies voter before employee entry.
  * POST /api/employee/verify-voter
@@ -109,7 +150,8 @@ router.post("/verify-voter", protect, officeOnly, async (req, res) => {
       return res.status(409).json({
         success: false,
         verified: false,
-        message: "This voter number has already been added as an employee record.",
+        message:
+          "This voter number has already been added as an employee record.",
       });
     }
 
@@ -206,7 +248,8 @@ router.post("/", protect, officeOnly, async (req, res) => {
     if (existingEmployee) {
       return res.status(409).json({
         success: false,
-        message: "This voter number has already been added as an employee record.",
+        message:
+          "This voter number has already been added as an employee record.",
       });
     }
 
@@ -232,6 +275,11 @@ router.post("/", protect, officeOnly, async (req, res) => {
 
     const voter = verification.data || {};
 
+    const loggedInOfficeName = req.user.office?.officeName || "";
+    const officeFullNameValue = getOfficeNameWithoutAddress(loggedInOfficeName);
+    const officeAddressValue =
+      getOfficeAddressFromOfficeName(loggedInOfficeName);
+
     const employee = await Employee.create({
       office: req.user.office._id,
 
@@ -243,15 +291,16 @@ router.post("/", protect, officeOnly, async (req, res) => {
       dob: voter.dob || dob,
       voterNo: voter.voterNumber || voterNo,
 
-      citizenshipNumber: clean(req.body.citizenshipNumber) || voter.citizenshipNumber || "",
+      citizenshipNumber:
+        clean(req.body.citizenshipNumber) || voter.citizenshipNumber || "",
       citizenshipIssueDistrict:
         clean(req.body.citizenshipIssueDistrict) || voter.districtId || "",
 
       parentFullName: clean(req.body.parentFullName) || voter.fatherName || "",
       spouseFullName: clean(req.body.spouseFullName) || voter.spouseName || "",
 
-      officeFullName: clean(req.body.officeFullName),
-      officeAddress: clean(req.body.officeAddress),
+      officeFullName: officeFullNameValue,
+      officeAddress: officeAddressValue,
 
       homeDistrict: clean(req.body.homeDistrict) || voter.districtId || "",
       homePalika: clean(req.body.homePalika) || voter.municipalityId || "",
@@ -342,7 +391,8 @@ router.post("/submit-office-records", protect, officeOnly, async (req, res) => {
     if (totalEmployees !== verifiedEmployees) {
       return res.status(400).json({
         success: false,
-        message: "All employee records must be voter verified before submission.",
+        message:
+          "All employee records must be voter verified before submission.",
       });
     }
 
@@ -361,7 +411,7 @@ router.post("/submit-office-records", protect, officeOnly, async (req, res) => {
       {
         new: true,
         upsert: true,
-      }
+      },
     ).populate("office", "officeCode officeName");
 
     return res.json({
@@ -420,7 +470,7 @@ router.get("/admin/submitted-offices", protect, adminOnly, async (req, res) => {
             employeeCount,
             verifiedCount,
           };
-        })
+        }),
     );
 
     return res.json({
@@ -488,8 +538,11 @@ router.get(
         { header: "Full Name", key: "fullName", width: 30 },
         { header: "DOB", key: "dob", width: 15 },
         { header: "Voter No", key: "voterNo", width: 15 },
-        { header: "Citizenship No", key: "citizenshipNumber", width: 20 },
-        { header: "Issue District", key: "citizenshipIssueDistrict", width: 22 },
+        {
+          header: "Citizenship No / Issue District",
+          key: "citizenshipDetails",
+          width: 35,
+        },
         { header: "Parent Full Name", key: "parentFullName", width: 30 },
         { header: "Spouse Full Name", key: "spouseFullName", width: 30 },
         { header: "Office Full Name", key: "officeFullName", width: 35 },
@@ -509,11 +562,10 @@ router.get(
           officeCode: employee.office?.officeCode || "",
           officeName: employee.office?.officeName || "",
           fullName: employee.fullName || "",
-          dob: employee.dob || "",
-          voterNo: employee.voterNo || "",
-          citizenshipNumber: employee.citizenshipNumber || employee.verifiedVoterDetails?.citizenshipNumber ||
-  employee.citizenshipNo || "",
-          citizenshipIssueDistrict: employee.citizenshipIssueDistrict || "",
+          dob: employee.dob ? toNepaliDigits(employee.dob) : "",
+          voterNo: employee.voterNo ? toNepaliDigits(employee.voterNo) : "",
+          citizenshipDetails: `${getCitizenshipNumber(employee) || "N/A"}, ${
+          employee.citizenshipIssueDistrict || "N/A"}`,
           parentFullName: employee.parentFullName || "",
           spouseFullName: employee.spouseFullName || "",
           officeFullName: employee.officeFullName || "",
@@ -537,12 +589,12 @@ router.get(
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
 
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename=${officeCode}-employee-records.xlsx`
+        `attachment; filename=${officeCode}-employee-records.xlsx`,
       );
 
       await workbook.xlsx.write(res);
@@ -555,7 +607,7 @@ router.get(
         message: "Failed to export office employee records.",
       });
     }
-  }
+  },
 );
 
 /**
@@ -634,7 +686,7 @@ router.put("/admin/:employeeId", protect, adminOnly, async (req, res) => {
       },
       {
         new: true,
-      }
+      },
     ).populate("office", "officeCode officeName");
 
     if (!employee) {

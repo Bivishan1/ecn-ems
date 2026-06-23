@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import axiosInstance from "../api/axiosInstance";
+import {getOfficeAddressFromOfficeName} from "../utils/helper";
+import {getOfficeNameWithoutAddress} from "../utils/helper";
 
 const initialFormData = {
   fullName: "",
@@ -24,16 +26,7 @@ const initialFormData = {
   grade: "",
 };
 
-  // address from office name - helper function
-
-  const getOfficeAddressFromOfficeName = (officeName = "") => {
-  const parts = officeName
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  return parts.length > 0 ? parts[parts.length - 1] : "";
-};
+ 
 
 const createInitialFormData = (account) => {
   const officeFullName = account?.office?.officeName ?? "";
@@ -58,6 +51,24 @@ const EmployeeEntryForm = ({ onSaved , account }) => {
     type: "",
     message: "",
   });
+
+const loggedInOfficeName = account?.office?.officeName || "";
+
+const officeFullNameValue = getOfficeNameWithoutAddress(loggedInOfficeName);
+
+// const officeFieldsLocked = true;
+
+/**
+ * Employee + home details are locked:
+ * - before verification: because there is no verified data
+ * - after verification: because data came from voter API
+ */
+// const fetchedFieldsLocked = true;
+
+/**
+ * Service details can be entered only after voter verification.
+ */
+// const serviceFieldsLocked = !isVoterVerified;
 
   const showToast = (type, message) => {
     setToast({ type, message });
@@ -99,8 +110,6 @@ const EmployeeEntryForm = ({ onSaved , account }) => {
 
     return `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4, 6)}-${digitsOnly.slice(6, 8)}`;
   };
-
-
 
   // validating unicode input in the fields
 
@@ -176,6 +185,7 @@ const EmployeeEntryForm = ({ onSaved , account }) => {
     if (!formData.homePalika.trim()) {
       return "Home palika is required.";
     }
+
 
     if (!formData.homeWardNo.trim()) {
       return "Home ward number is required.";
@@ -274,6 +284,7 @@ const EmployeeEntryForm = ({ onSaved , account }) => {
 
       setVerifiedVoter(voter);
       setIsVoterVerified(true);
+      console.log("Voter verified status:", isVoterVerified);
 
       setFormData((prev) => ({
         ...prev,
@@ -387,7 +398,7 @@ const EmployeeEntryForm = ({ onSaved , account }) => {
 
   const labelClass = "block text-sm font-medium text-slate-700";
 
-  const canEditEmployeeFields = isVoterVerified;
+  const canEditEmployeeFields = !isVoterVerified;
 
   return (
     <div className="relative bg-white rounded-2xl shadow p-6">
@@ -618,7 +629,7 @@ const EmployeeEntryForm = ({ onSaved , account }) => {
               <input
                 type="text"
                 name="officeFullName"
-                value={formData.officeFullName}
+                value={officeFullNameValue}
                 onChange={handleChange}
                 disabled={!canEditEmployeeFields}
                 placeholder="कार्यालयको पूरा नाम"

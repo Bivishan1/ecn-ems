@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import Toast from "../components/Toast";
 import EmployeeEntryForm from "../components/EmployeeEntryForm";
+import {getOfficeNameWithoutAddress} from "../utils/helper";
+import {getOfficeAddressFromOfficeName} from "../utils/helper";
 
 const OfficeDashboard = () => {
   const navigate = useNavigate();
@@ -58,7 +60,7 @@ const OfficeDashboard = () => {
     try {
       setEmployeeLoading(true);
 
-      const res = await axiosInstance.get("/employee/my-office");
+  const res = await axiosInstance.get("/employee/my-office");
   console.log('employees response:',res.data.employees);
       setEmployees(res.data.employees || []);
     
@@ -173,6 +175,31 @@ const OfficeDashboard = () => {
     : totalEmployees > 0
       ? "text-blue-700"
       : "text-orange-600";
+
+  // office name and excel import 
+  const getDisplayOfficeName = (employee) => {
+  const rawOfficeName =
+    employee.officeFullName ||
+    account?.office?.officeName ||
+    "";
+
+  return getOfficeNameWithoutAddress(rawOfficeName);
+};
+
+const getDisplayOfficeAddress = (employee) => {
+  const rawOfficeName =
+    employee.officeFullName ||
+    account?.office?.officeName ||
+    "";
+
+  return (
+    employee.officeAddress ||
+    getOfficeAddressFromOfficeName(rawOfficeName) ||
+    "N/A"
+  );
+};
+
+
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -435,11 +462,11 @@ const OfficeDashboard = () => {
                       </td>
 
                       <td className="py-3 pr-4">
-                        {employee.officeFullName || "N/A"}
+                        {getDisplayOfficeName(employee) || "N/A"}
                       </td>
 
                       <td className="py-3 pr-4">
-                        {employee.officeAddress || "N/A"}
+                        {getDisplayOfficeAddress(employee) || "N/A"}
                       </td>
 
                       <td className="py-3 pr-4">

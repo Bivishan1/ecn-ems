@@ -24,8 +24,29 @@ const initialFormData = {
   grade: "",
 };
 
-const EmployeeEntryForm = ({ onSaved }) => {
-  const [formData, setFormData] = useState(initialFormData);
+  // address from office name - helper function
+
+  const getOfficeAddressFromOfficeName = (officeName = "") => {
+  const parts = officeName
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.length > 0 ? parts[parts.length - 1] : "";
+};
+
+const createInitialFormData = (account) => {
+  const officeFullName = account?.office?.officeName ?? "";
+
+  return {
+    ...initialFormData,
+    officeFullName,
+    officeAddress: getOfficeAddressFromOfficeName(officeFullName),
+  };
+};
+
+const EmployeeEntryForm = ({ onSaved , account }) => {
+  const [formData, setFormData] = useState(() =>  createInitialFormData(account));
 
   const [isVoterVerified, setIsVoterVerified] = useState(false);
   const [verifiedVoter, setVerifiedVoter] = useState(null);
@@ -78,6 +99,10 @@ const EmployeeEntryForm = ({ onSaved }) => {
 
     return `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4, 6)}-${digitsOnly.slice(6, 8)}`;
   };
+
+
+
+  // validating unicode input in the fields
 
   const unicodeOnlyFields = [
     { key: "fullName", label: "Full name" },
@@ -287,6 +312,10 @@ const EmployeeEntryForm = ({ onSaved }) => {
       setVerifying(false);
     }
   };
+ // Provide a fallback for the dependency
+
+
+  // handle submit form
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -333,7 +362,8 @@ const EmployeeEntryForm = ({ onSaved }) => {
         res.data.message || "Employee record saved successfully.",
       );
 
-      setFormData(initialFormData);
+      
+      setFormData(createInitialFormData(account));
       setIsVoterVerified(false);
       setVerifiedVoter(null);
 

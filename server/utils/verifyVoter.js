@@ -45,7 +45,7 @@ const verifyVoterFromElectionApi = async ({ voterNo, dob }) => {
         headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        "X-App-Handshake": "CivicVoteSecure",
+        "X-App-Handshake": "VoterrollSecure",
 
         /**
          * Some public APIs reject server-side requests unless these browser-like

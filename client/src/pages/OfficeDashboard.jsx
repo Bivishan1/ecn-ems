@@ -350,7 +350,7 @@ const OfficeDashboard = () => {
           </div>
         )}
 
-        {showEmployeeForm && <EmployeeEntryForm onSaved={handleEmployeeSaved} />}
+        {showEmployeeForm && <EmployeeEntryForm onSaved={handleEmployeeSaved} account={account} />}
 
         <div className="bg-white rounded-2xl shadow p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">

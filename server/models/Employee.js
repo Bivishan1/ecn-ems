@@ -47,6 +47,11 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
     },
 
+    motherFullName: {
+  type: String,
+  trim: true,
+},
+
     spouseFullName: {
       type: String,
       trim: true,

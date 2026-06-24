@@ -4,3 +4,6 @@ to locate the node.js to find the certificate:
 D:\election system\ECN EMS
 
 $env:NODE_EXTRA_CA_CERTS="D:\election system\ECN EMS\SectigoR36.pem"; npm run dev
+
+rest to add:
+submitted offices count card in admin dashboard.

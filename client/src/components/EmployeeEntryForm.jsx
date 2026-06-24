@@ -12,6 +12,7 @@ const initialFormData = {
   citizenshipIssueDistrict: "",
 
   parentFullName: "",
+  motherFullName: "",
   spouseFullName: "",
 
   officeFullName: "",
@@ -117,6 +118,7 @@ const officeFullNameValue = getOfficeNameWithoutAddress(loggedInOfficeName);
     { key: "fullName", label: "Full name" },
     { key: "citizenshipIssueDistrict", label: "Citizenship issue district" },
     { key: "parentFullName", label: "Parent full name" },
+    { key: "motherFullName", label: "Mother full name" },
     { key: "spouseFullName", label: "Spouse full name" },
     { key: "officeFullName", label: "Office full name" },
     { key: "officeAddress", label: "Office address" },
@@ -170,6 +172,14 @@ const officeFullNameValue = getOfficeNameWithoutAddress(loggedInOfficeName);
       return "Parent full name is required.";
     }
 
+    if (!formData.motherFullName.trim()) {
+      return "Mother full name is required.";
+    }
+
+    if (!formData.spouseFullName.trim()) {
+      return "Spouse full name is required.";
+    }
+
     if (!formData.officeFullName.trim()) {
       return "Office full name is required.";
     }
@@ -212,6 +222,7 @@ const officeFullNameValue = getOfficeNameWithoutAddress(loggedInOfficeName);
       citizenshipNumber: "",
       citizenshipIssueDistrict: "",
       parentFullName: "",
+      motherFullName: "",
       spouseFullName: "",
 
       homeDistrict: "",
@@ -281,6 +292,12 @@ const officeFullNameValue = getOfficeNameWithoutAddress(loggedInOfficeName);
       });
 
       const voter = res.data.voter || {};
+      const fatherName = voter.fatherName || "";
+const motherName = voter.motherName || "";
+
+const parentCombinedName = [fatherName, motherName]
+  .filter(Boolean)
+  .join(" / ");
 
       setVerifiedVoter(voter);
       setIsVoterVerified(true);
@@ -297,7 +314,8 @@ const officeFullNameValue = getOfficeNameWithoutAddress(loggedInOfficeName);
         citizenshipIssueDistrict:
           voter.districtId || prev.citizenshipIssueDistrict,
 
-        parentFullName: voter.fatherName || prev.parentFullName,
+        parentFullName: parentCombinedName || prev.parentFullName,
+        motherFullName: motherName || prev.motherFullName,
         spouseFullName: voter.spouseName || prev.spouseFullName,
 
         homeDistrict: voter.districtId || prev.homeDistrict,
@@ -352,6 +370,7 @@ const officeFullNameValue = getOfficeNameWithoutAddress(loggedInOfficeName);
         citizenshipIssueDistrict: formData.citizenshipIssueDistrict.trim(),
 
         parentFullName: formData.parentFullName.trim(),
+        motherFullName: formData.motherFullName.trim(),
         spouseFullName: formData.spouseFullName.trim(),
 
         officeFullName: formData.officeFullName.trim(),

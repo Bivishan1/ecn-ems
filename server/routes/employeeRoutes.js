@@ -43,6 +43,28 @@ const hasEnglishLetters = (value = "") => {
         .replace(/[0-9]/g, (digit) => nepaliDigits[Number(digit)]);
     };
 
+    //helper function to Excel export: parent full name as father / mother
+
+    const getParentDisplayName = (employee = {}) => {
+  const parentFullName =
+    employee.parentFullName ||
+    employee.verifiedVoterDetails?.fatherName ||
+    "";
+
+  const motherFullName =
+    employee.motherFullName ||
+    employee.verifiedVoterDetails?.motherName ||
+    "";
+
+  if (parentFullName.includes("/") || !motherFullName) {
+    return parentFullName || motherFullName || "";
+  }
+
+  return `${parentFullName} / ${motherFullName}`;
+};
+
+
+
 const unicodeOnlyFields = [
   { key: "fullName", label: "Full name" },
   { key: "citizenshipIssueDistrict", label: "Citizenship issue district" },
@@ -291,12 +313,19 @@ router.post("/", protect, officeOnly, async (req, res) => {
       dob: voter.dob || dob,
       voterNo: voter.voterNumber || voterNo,
 
+      fatherName: voter.parentFullName || voter.fatherName || "",
+      motherName: voter.motherName || motherName,
+      parentCombinedName: [fatherName, motherName]
+        .filter(Boolean)
+        .join(" / "),
+
       citizenshipNumber:
         clean(req.body.citizenshipNumber) || voter.citizenshipNumber || "",
       citizenshipIssueDistrict:
         clean(req.body.citizenshipIssueDistrict) || voter.districtId || "",
 
-      parentFullName: clean(req.body.parentFullName) || voter.fatherName || "",
+      parentFullName: parentCombinedName ||"", 
+      motherFullName : motherName || "",
       spouseFullName: clean(req.body.spouseFullName) || voter.spouseName || "",
 
       officeFullName: officeFullNameValue,
@@ -566,7 +595,7 @@ router.get(
           voterNo: employee.voterNo ? toNepaliDigits(employee.voterNo) : "",
           citizenshipDetails: `${getCitizenshipNumber(employee) || "N/A"}, ${
           employee.citizenshipIssueDistrict || "N/A"}`,
-          parentFullName: employee.parentFullName || "",
+          parentFullName: getParentDisplayName(employee),
           spouseFullName: employee.spouseFullName || "",
           officeFullName: employee.officeFullName || "",
           officeAddress: employee.officeAddress || "",
@@ -660,6 +689,7 @@ router.put("/admin/:employeeId", protect, adminOnly, async (req, res) => {
       citizenshipNumber: req.body.citizenshipNumber,
       citizenshipIssueDistrict: req.body.citizenshipIssueDistrict,
       parentFullName: req.body.parentFullName,
+      motherFullName: req.body.motherFullName,
       spouseFullName: req.body.spouseFullName,
       officeFullName: req.body.officeFullName,
       officeAddress: req.body.officeAddress,

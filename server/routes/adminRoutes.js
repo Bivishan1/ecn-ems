@@ -6,6 +6,7 @@ const AdminUser = require("../models/AdminUser");
 const Office = require("../models/Office");
 const OfficeAccess = require("../models/OfficeAccess");
 const OfficeLoginLog = require("../models/OfficeLoginLog");
+const OfficeSubmission = require("../models/OfficeSubmission");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -181,11 +182,48 @@ router.get("/dashboard-summary", protect, adminOnly, async (req, res) => {
     const totalLoginEvents =
       totalLoginEventsResult.length > 0 ? totalLoginEventsResult[0].total : 0;
 
+    // count submitted records offices
+    const submittedOfficeResult = await OfficeSubmission.aggregate([
+  {
+    $match: {
+      status: "submitted",
+    },
+  },
+  {
+    $lookup: {
+      from: "offices",
+      localField: "office",
+      foreignField: "_id",
+      as: "officeData",
+    },
+  },
+  {
+    $unwind: "$officeData",
+  },
+  {
+    $match: {
+      "officeData.isActive": true,
+      "officeData.role": "office",
+    },
+  },
+  {
+    $group: {
+      _id: "$office",
+    },
+  },
+  {
+    $count: "count",
+  },
+]);
+
+const submittedOffices = submittedOfficeResult[0]?.count || 0;
+
     res.json({
       success: true,
       summary: {
         totalOffices,
         registeredOffices,
+        submittedOffices,
         pendingOffices,
         totalLoginEvents,
 

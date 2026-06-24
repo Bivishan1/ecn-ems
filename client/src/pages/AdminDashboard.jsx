@@ -157,6 +157,11 @@ const AdminDashboard = () => {
       action: () => setActiveList("registered"),
     },
     {
+      title: "Submitted Offices",
+      value: summary?.submittedOffices ?? 0,
+      action: () => setActiveList("submitted"),
+    },
+    {
       title: "Pending Offices",
       value: totalPendingOffices,
       action: () => setActiveList("pending"),
@@ -172,14 +177,6 @@ const AdminDashboard = () => {
     {
       title: "Duplicate Records",
       value: summary?.duplicateRecords ?? 0,
-    },
-    {
-      title: "Eligible for Polling Duty",
-      value: summary?.eligibleForPollingDuty ?? 0,
-    },
-    {
-      title: "Total Polling Centers",
-      value: summary?.totalPollingCenters ?? 0,
     },
   ];
 
@@ -408,57 +405,6 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* office login logs */}
-        <div className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-lg font-semibold text-slate-800">
-            Recent Office OTP Login Logs
-          </h2>
-
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-slate-500">
-                  <th className="py-3 pr-4">Office</th>
-                  <th className="py-3 pr-4">Responsible Person</th>
-                  <th className="py-3 pr-4">Contact</th>
-                  <th className="py-3 pr-4">Verified At</th>
-                  <th className="py-3 pr-4">IP Address</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {logs.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="py-4 text-slate-500">
-                      No login logs found.
-                    </td>
-                  </tr>
-                ) : (
-                  logs.map((log) => (
-                    <tr key={log._id} className="border-b">
-                      <td className="py-3 pr-4">
-                        {log.office?.officeCode} - {log.office?.officeName}
-                      </td>
-
-                      <td className="py-3 pr-4">{log.responsiblePersonName}</td>
-
-                      <td className="py-3 pr-4">{log.contactNumber}</td>
-
-                      <td className="py-3 pr-4">
-                        {log.verifiedAt
-                          ? new Date(log.verifiedAt).toLocaleString()
-                          : "N/A"}
-                      </td>
-
-                      <td className="py-3 pr-4">{log.ipAddress || "N/A"}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        {/* office login logs closed */}
 
         {activeList === "registered" && (
           <div className="bg-white rounded-2xl shadow p-6">
@@ -829,124 +775,214 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Selected office employee records JSX */}
-        {selectedOffice && (
-          <div className="bg-white rounded-2xl shadow p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-800">
-                  Employee Records: {selectedOffice.office?.officeName}
-                </h2>
+        {/* Selected office employee records JSX , now replacing with modal box overlay */}
+    {isOfficeModalOpen && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+    <div className="bg-white w-full max-w-7xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden">
+      <div className="px-6 py-4 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Employee Records
+          </h2>
 
-                <p className="text-sm text-slate-500 mt-1">
-                  Admin can review, edit, delete, and export this office’s
-                  records.
-                </p>
-              </div>
+          <p className="text-sm text-slate-500 mt-1">
+            {selectedOffice?.office?.officeCode} -{" "}
+            {selectedOffice?.office?.officeName}
+          </p>
+        </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  exportOfficeEmployees(
-                    selectedOffice.office._id,
-                    selectedOffice.office.officeCode,
-                  )
-                }
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-              >
-                Export This Office
-              </button>
-            </div>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() =>
+              exportOfficeEmployees(
+                selectedOffice.office._id,
+                selectedOffice.office.officeCode
+              )
+            }
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+          >
+            Export This Office
+          </button>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-slate-500">
-                    <th className="py-3 pr-4">Full Name</th>
-                    <th className="py-3 pr-4">DOB</th>
-                    <th className="py-3 pr-4">Voter No</th>
-                    <th className="py-3 pr-4">Citizenship / District</th>
-                    <th className="py-3 pr-4">Parent</th>
-                    <th className="py-3 pr-4">Spouse</th>
-                    <th className="py-3 pr-4">Home</th>
-                    <th className="py-3 pr-4">Position</th>
-                    <th className="py-3 pr-4">Action</th>
+          <button
+            type="button"
+            onClick={closeOfficeModal}
+            className="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-800"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+
+      <div className="p-6 overflow-auto max-h-[75vh]">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-slate-500">
+              <th className="py-3 pr-4">Full Name</th>
+              <th className="py-3 pr-4">DOB</th>
+              <th className="py-3 pr-4">Voter No</th>
+              <th className="py-3 pr-4">Citizenship / District</th>
+              <th className="py-3 pr-4">Parent</th>
+              <th className="py-3 pr-4">Spouse</th>
+              <th className="py-3 pr-4">Office</th>
+              <th className="py-3 pr-4">Home</th>
+              <th className="py-3 pr-4">Position</th>
+              <th className="py-3 pr-4">Verification</th>
+              <th className="py-3 pr-4">Action</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {selectedEmployeeLoading ? (
+              <tr>
+                <td colSpan="11" className="py-4 text-slate-500">
+                  Loading employee records...
+                </td>
+              </tr>
+            ) : selectedEmployees.length === 0 ? (
+              <tr>
+                <td colSpan="11" className="py-4 text-slate-500">
+                  No employee records found for this office.
+                </td>
+              </tr>
+            ) : (
+              selectedEmployees.map((employee) => (
+                <tr key={employee._id} className="border-b">
+                  <td className="py-3 pr-4">
+                    {employee.fullName || "N/A"}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    {employee.dob || "N/A"}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    {employee.voterNo || "N/A"}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    {employee.citizenshipNumber ||
+                      employee.verifiedVoterDetails?.citizenshipNumber ||
+                      employee.citizenshipNo ||
+                      "N/A"}{" "}
+                    / {employee.citizenshipIssueDistrict || "N/A"}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    {employee.parentFullName || "N/A"}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    {employee.spouseFullName || "N/A"}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    {employee.officeFullName || "N/A"},{" "}
+                    {employee.officeAddress || "N/A"}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    {employee.homeDistrict || "N/A"},{" "}
+                    {employee.homePalika || "N/A"} -{" "}
+                    {employee.homeWardNo || "N/A"}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    {employee.position || "N/A"}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    {employee.isVoterVerified ? (
+                      <span className="text-green-700 font-medium">
+                        Verified
+                      </span>
+                    ) : (
+                      <span className="text-orange-600 font-medium">
+                        Pending
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="py-3 pr-4">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="bg-yellow-500 text-white px-3 py-1.5 rounded-lg hover:bg-yellow-600"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteEmployee(employee._id)}
+                        className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+)}
+
+          {/* office login logs */}
+        <div className="bg-white rounded-2xl shadow p-6">
+          <h2 className="text-lg font-semibold text-slate-800">
+            Recent Office OTP Login Logs
+          </h2>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-slate-500">
+                  <th className="py-3 pr-4">Office</th>
+                  <th className="py-3 pr-4">Responsible Person</th>
+                  <th className="py-3 pr-4">Contact</th>
+                  <th className="py-3 pr-4">Verified At</th>
+                  <th className="py-3 pr-4">IP Address</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {logs.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="py-4 text-slate-500">
+                      No login logs found.
+                    </td>
                   </tr>
-                </thead>
-
-                <tbody>
-                  {selectedEmployeeLoading ? (
-                    <tr>
-                      <td colSpan="9" className="py-4 text-slate-500">
-                        Loading employee records...
+                ) : (
+                  logs.map((log) => (
+                    <tr key={log._id} className="border-b">
+                      <td className="py-3 pr-4">
+                        {log.office?.officeCode} - {log.office?.officeName}
                       </td>
-                    </tr>
-                  ) : selectedEmployees.length === 0 ? (
-                    <tr>
-                      <td colSpan="9" className="py-4 text-slate-500">
-                        No employee records found for this office.
+
+                      <td className="py-3 pr-4">{log.responsiblePersonName}</td>
+
+                      <td className="py-3 pr-4">{log.contactNumber}</td>
+
+                      <td className="py-3 pr-4">
+                        {log.verifiedAt
+                          ? new Date(log.verifiedAt).toLocaleString()
+                          : "N/A"}
                       </td>
+
+                      <td className="py-3 pr-4">{log.ipAddress || "N/A"}</td>
                     </tr>
-                  ) : (
-                    selectedEmployees.map((employee) => (
-                      <tr key={employee._id} className="border-b">
-                        <td className="py-3 pr-4">{employee.fullName}</td>
-
-                        <td className="py-3 pr-4">{employee.dob}</td>
-
-                        <td className="py-3 pr-4">{employee.voterNo}</td>
-
-                        <td className="py-3 pr-4">
-                          {employee.citizenshipNumber ||
-                            employee.verifiedVoterDetails?.citizenshipNumber ||
-                            employee.citizenshipNo ||
-                            "N/A"}{" "}
-                          / {employee.citizenshipIssueDistrict || "N/A"}
-                        </td>
-
-                        <td className="py-3 pr-4">
-                          {employee.parentFullName || "N/A"}
-                        </td>
-
-                        <td className="py-3 pr-4">
-                          {employee.spouseFullName || "N/A"}
-                        </td>
-
-                        <td className="py-3 pr-4">
-                          {employee.homeDistrict}, {employee.homePalika} -{" "}
-                          {employee.homeWardNo}
-                        </td>
-
-                        <td className="py-3 pr-4">
-                          {employee.position || "N/A"}
-                        </td>
-
-                        <td className="py-3 pr-4">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              className="bg-yellow-500 text-white px-3 py-1.5 rounded-lg hover:bg-yellow-600"
-                            >
-                              Edit
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => deleteEmployee(employee._id)}
-                              className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
+        {/* office login logs closed */}
 
         {/* Admin capability Info */}
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">

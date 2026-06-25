@@ -6,7 +6,10 @@ const AdminUser = require("../models/AdminUser");
 const Office = require("../models/Office");
 const OfficeAccess = require("../models/OfficeAccess");
 const OfficeLoginLog = require("../models/OfficeLoginLog");
+
+const Employee = require("../models/Employee");
 const OfficeSubmission = require("../models/OfficeSubmission");
+
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -108,6 +111,71 @@ router.get("/me", protect, adminOnly, async (req, res) => {
       lastLoginAt: req.user.lastLoginAt,
     },
   });
+});
+
+// all office emplooyee records
+router.get("/all-offices-records", protect, adminOnly, async (req, res) => {
+  try {
+    const offices = await Office.find({
+      isActive: true,
+      role: "office",
+    }).sort({ officeCode: 1 });
+
+    const result = await Promise.all(
+      offices.map(async (office) => {
+        const officeAccess = await OfficeAccess.findOne({
+          office: office._id,
+          hasVerifiedOtp: true,
+        });
+
+        const submission = await OfficeSubmission.findOne({
+          office: office._id,
+        });
+
+        const employeeCount = await Employee.countDocuments({
+          office: office._id,
+        });
+
+        const verifiedEmployeeCount = await Employee.countDocuments({
+          office: office._id,
+          isVoterVerified: true,
+        });
+
+        return {
+          officeId: office._id,
+          officeCode: office.officeCode,
+          officeName: office.officeName,
+
+          isRegistered: !!officeAccess,
+          registrationStatus: officeAccess ? "Registered" : "Not Registered",
+
+          submissionStatus: submission?.status || "not_submitted",
+          submittedAt: submission?.submittedAt || null,
+
+          employeeCount,
+          verifiedEmployeeCount,
+
+          lastLoginAt: officeAccess?.lastLoginAt || null,
+          loginCount: officeAccess?.loginCount || 0,
+          responsiblePersonName:
+            officeAccess?.lastResponsiblePersonName || "",
+          contactNumber: officeAccess?.lastContactNumber || "",
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      offices: result,
+    });
+  } catch (error) {
+    console.error("Fetch all offices records error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch all offices records.",
+    });
+  }
 });
 
 /**
@@ -216,7 +284,28 @@ router.get("/dashboard-summary", protect, adminOnly, async (req, res) => {
   },
 ]);
 
-const submittedOffices = submittedOfficeResult[0]?.count || 0;
+// const submittedOffices = submittedOfficeResult[0]?.count || 0;
+
+// new submitted records count login 
+const submittedOfficeIds = await OfficeSubmission.distinct("office", {
+  status: "submitted",
+});
+
+const totalEmployees = await Employee.countDocuments({
+  office: {
+    $in: submittedOfficeIds,
+  },
+});
+
+const verifiedEmployees = await Employee.countDocuments({
+  office: {
+    $in: submittedOfficeIds,
+  },
+  isVoterVerified: true,
+});
+
+const submittedOffices = submittedOfficeIds.length;
+
 
     res.json({
       success: true,
@@ -226,6 +315,8 @@ const submittedOffices = submittedOfficeResult[0]?.count || 0;
         submittedOffices,
         pendingOffices,
         totalLoginEvents,
+        totalEmployees,
+        verifiedEmployees,
 
         totalEmployeesCollected: 0,
         duplicateRecords: 0,

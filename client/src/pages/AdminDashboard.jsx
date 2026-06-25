@@ -1,7 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import Toast from "../components/Toast";
+import usePagination from "../hooks/usePagination";
+import TablePagination from "../components/TablePagination";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -20,6 +22,15 @@ const AdminDashboard = () => {
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [selectedEmployeeLoading, setSelectedEmployeeLoading] = useState(false);
   const [isOfficeModalOpen, setIsOfficeModalOpen] = useState(false);
+  //all office employee routes
+  const [allOfficesRecords, setAllOfficesRecords] = useState([]);
+ 
+  // search and sorting states
+  const [allOfficesSearch, setAllOfficesSearch] = useState("");
+const [allOfficesSort, setAllOfficesSort] = useState({
+  key: "employeeCount",
+  direction: "desc",
+});
 
   const [toast, setToast] = useState({
     type: "",
@@ -50,6 +61,9 @@ const AdminDashboard = () => {
         const submittedOfficesRes = await axiosInstance.get(
           "/employee/admin/submitted-offices",
         );
+        const allOfficesRecordsRes = await axiosInstance.get(
+          "/admin/all-offices-records",
+        );
 
         setAccount(profileRes.data.account);
         setSummary(summaryRes.data.summary);
@@ -58,6 +72,7 @@ const AdminDashboard = () => {
         setPendingOffices(pendingRes.data.offices || []);
         setEmployees(employeesRes.data.employees || []);
         setSubmittedOffices(submittedOfficesRes.data.offices || []);
+        setAllOfficesRecords(allOfficesRecordsRes.data.offices || []);
       } catch (err) {
         console.error(
           "Admin dashboard error:",
@@ -113,7 +128,85 @@ const AdminDashboard = () => {
     summary?.pendingOffices ??
     Math.max(totalSeededOffices - totalRegisteredOffices, 0);
   // computed values close
-  // computed values close
+
+  // const func are not hoisted, so we define it before using in useMemo
+  const getSubmissionRank = useCallback((status = "") => {
+  const ranks = {
+    approved: 4,
+    submitted: 3,
+    returned: 2,
+    draft: 1,
+    not_submitted: 0,
+  };
+
+  return ranks[status] ?? 0;
+}, []);
+
+  const getAllOfficesSortValue = useCallback((office, key) => {
+  if (key === "registrationStatus") {
+    return office.isRegistered ? 1 : 0;
+  }
+
+  if (key === "submissionStatus") {
+    return getSubmissionRank(office.submissionStatus);
+  }
+
+  if (key === "employeeCount") {
+    return Number(office.employeeCount || 0);
+  }
+
+  if (key === "lastLoginAt") {
+    return office.lastLoginAt ? new Date(office.lastLoginAt).getTime() : 0;
+  }
+
+  if (key === "officeName") {
+    return (office.officeName || "").toLowerCase();
+  }
+
+  return office[key] || "";
+}, [ getSubmissionRank]);
+
+  // filtered + sorted data
+  const filteredAllOfficesRecords = useMemo(() => {
+  const search = allOfficesSearch.trim().toLowerCase();
+
+  return allOfficesRecords.filter((office) => {
+    if (!search) return true;
+
+    return (office.officeName || "").toLowerCase().includes(search);
+  });
+}, [allOfficesRecords, allOfficesSearch]);
+
+const sortedAllOfficesRecords = useMemo(() => {
+  const sorted = [...filteredAllOfficesRecords];
+
+  sorted.sort((a, b) => {
+    const aValue = getAllOfficesSortValue(a, allOfficesSort.key);
+    const bValue = getAllOfficesSortValue(b, allOfficesSort.key);
+
+    if (typeof aValue === "string" && typeof bValue === "string") {
+      return allOfficesSort.direction === "asc"
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    }
+
+    return allOfficesSort.direction === "asc"
+      ? aValue - bValue
+      : bValue - aValue;
+  });
+
+  return sorted;
+}, [filteredAllOfficesRecords, allOfficesSort, getAllOfficesSortValue]);
+
+ const allOfficesRecordsPagination = usePagination(sortedAllOfficesRecords, 10);
+
+  // pagination hooks
+  const submittedOfficesPagination = usePagination(submittedOffices, 10);
+  const registeredOfficesPagination = usePagination(registeredOffices, 10);
+  const pendingOfficesPagination = usePagination(pendingOffices, 10);
+  const logsPagination = usePagination(logs, 10);
+  const selectedEmployeesPagination = usePagination(selectedEmployees, 10);
+  // pagination hooks close
 
   if (loading) {
     return (
@@ -158,7 +251,7 @@ const AdminDashboard = () => {
     },
     {
       title: "Submitted Offices",
-      value: summary?.submittedOffices ?? 0,
+      value: summary?.submittedOffices || 0,
       action: () => setActiveList("submitted"),
     },
     {
@@ -172,7 +265,7 @@ const AdminDashboard = () => {
     },
     {
       title: "Total Employees Collected",
-      value: summary?.totalEmployeesCollected ?? 0,
+      value: summary?.totalEmployees || 0,
     },
     {
       title: "Duplicate Records",
@@ -318,6 +411,39 @@ const AdminDashboard = () => {
     }
   };
 
+  // searching and sorting 
+  const handleAllOfficesSort = (key) => {
+  setAllOfficesSort((prev) => {
+    if (prev.key === key) {
+      return {
+        key,
+        direction: prev.direction === "asc" ? "desc" : "asc",
+      };
+    }
+
+    const defaultDirection =
+      key === "employeeCount" || key === "lastLoginAt"
+        ? "desc"
+        : "asc";
+
+    return {
+      key,
+      direction: defaultDirection,
+    };
+  });
+};
+
+
+
+
+
+const getSortArrow = (key) => {
+  if (allOfficesSort.key !== key) return "↕";
+
+  return allOfficesSort.direction === "asc" ? "↑" : "↓";
+};
+
+
   return (
     <div className="min-h-screen bg-slate-100">
       <Toast type={toast.type} message={toast.message} onClose={closeToast} />
@@ -405,7 +531,183 @@ const AdminDashboard = () => {
           ))}
         </div>
 
+        {/* all offices records */}
+        <div className="bg-white rounded-2xl shadow p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+  <div>
+    <h2 className="text-lg font-semibold text-slate-800">
+      Total Offices Records
+    </h2>
 
+    <p className="text-sm text-slate-500 mt-1">
+      Complete office list with registration and final submission status.
+    </p>
+  </div>
+
+  <div className="flex flex-col md:flex-row gap-3">
+    <input
+      type="text"
+      value={allOfficesSearch}
+      onChange={(e) => setAllOfficesSearch(e.target.value)}
+      placeholder="Search by office name..."
+      className="w-full md:w-72 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+
+    <button
+      type="button"
+      onClick={''}
+      className="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-900"
+    >
+      Refresh
+    </button>
+  </div>
+</div>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-sm">
+            <thead>
+  <tr className="border-b text-left text-slate-500">
+    <th className="py-3 pr-4">Office Code</th>
+
+    <th className="py-3 pr-4">
+      <button
+        type="button"
+        onClick={() => handleAllOfficesSort("officeName")}
+        className="font-medium hover:text-blue-700"
+      >
+        Office Name {getSortArrow("officeName")}
+      </button>
+    </th>
+
+    <th className="py-3 pr-4">
+      <button
+        type="button"
+        onClick={() => handleAllOfficesSort("registrationStatus")}
+        className="font-medium hover:text-blue-700"
+      >
+        Registration Status {getSortArrow("registrationStatus")}
+      </button>
+    </th>
+
+    <th className="py-3 pr-4">
+      <button
+        type="button"
+        onClick={() => handleAllOfficesSort("submissionStatus")}
+        className="font-medium hover:text-blue-700"
+      >
+        Submission Status {getSortArrow("submissionStatus")}
+      </button>
+    </th>
+
+    <th className="py-3 pr-4">
+      <button
+        type="button"
+        onClick={() => handleAllOfficesSort("employeeCount")}
+        className="font-medium hover:text-blue-700"
+      >
+        Employees {getSortArrow("employeeCount")}
+      </button>
+    </th>
+
+    <th className="py-3 pr-4">Verified</th>
+    <th className="py-3 pr-4">Submitted At</th>
+
+    <th className="py-3 pr-4">
+      <button
+        type="button"
+        onClick={() => handleAllOfficesSort("lastLoginAt")}
+        className="font-medium hover:text-blue-700"
+      >
+        Last Login {getSortArrow("lastLoginAt")}
+      </button>
+    </th>
+  </tr>
+</thead>
+
+              <tbody>
+                {allOfficesRecordsPagination.paginatedItems.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="py-4 text-slate-500">
+                      No office records found.
+                    </td>
+                  </tr>
+                ) : (
+                  allOfficesRecordsPagination.paginatedItems.map((office) => (
+                    <tr key={office.officeId} className="border-b">
+                      <td className="py-3 pr-4">
+                        {office.officeCode || "N/A"}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {office.officeName || "N/A"}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {office.isRegistered ? (
+                          <span className="text-green-700 font-medium">
+                            Registered
+                          </span>
+                        ) : (
+                          <span className="text-orange-600 font-medium">
+                            Not Registered
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {office.submissionStatus === "submitted" ? (
+                          <span className="text-green-700 font-medium">
+                            Submitted
+                          </span>
+                        ) : office.submissionStatus === "returned" ? (
+                          <span className="text-red-600 font-medium">
+                            Returned
+                          </span>
+                        ) : office.submissionStatus === "approved" ? (
+                          <span className="text-blue-700 font-medium">
+                            Approved
+                          </span>
+                        ) : (
+                          <span className="text-slate-500 font-medium">
+                            Not Submitted
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-3 pr-4">{office.employeeCount || 0}</td>
+
+                      <td className="py-3 pr-4">
+                        {office.verifiedEmployeeCount || 0}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {office.submittedAt
+                          ? new Date(office.submittedAt).toLocaleString()
+                          : "N/A"}
+                      </td>
+
+                      <td className="py-3 pr-4">
+                        {office.lastLoginAt
+                          ? new Date(office.lastLoginAt).toLocaleString()
+                          : "N/A"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <TablePagination
+            currentPage={allOfficesRecordsPagination.currentPage}
+            totalPages={allOfficesRecordsPagination.totalPages}
+            totalItems={allOfficesRecordsPagination.totalItems}
+            itemsPerPage={allOfficesRecordsPagination.itemsPerPage}
+            onPageChange={allOfficesRecordsPagination.goToPage}
+          />
+        </div>
+
+        {/* already activated registered table records */}
         {activeList === "registered" && (
           <div className="bg-white rounded-2xl shadow p-6">
             <h2 className="text-lg font-semibold text-slate-800">
@@ -463,68 +765,74 @@ const AdminDashboard = () => {
                   )}
                 </tbody>
               </table>
-              <button
-                type="button"
-                onClick={exportEmployees}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-              >
-                Export Employee Records
-              </button>
+              <TablePagination
+                currentPage={registeredOfficesPagination.currentPage}
+                totalPages={registeredOfficesPagination.totalPages}
+                totalItems={registeredOfficesPagination.totalItems}
+                itemsPerPage={registeredOfficesPagination.itemsPerPage}
+                onPageChange={registeredOfficesPagination.goToPage}
+              />
             </div>
           </div>
         )}
 
-        {activeList === "pending" && (
-          <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-lg font-semibold text-slate-800">
-              Pending Offices
-            </h2>
+        <div className="bg-white rounded-2xl shadow p-6">
+          <h2 className="text-lg font-semibold text-slate-800">
+            Pending Offices
+          </h2>
 
-            <p className="text-sm text-slate-500 mt-1">
-              These offices exist in the master list but have not verified OTP
-              yet.
-            </p>
+          <p className="text-sm text-slate-500 mt-1">
+            These offices exist in the master list but have not verified OTP
+            yet.
+          </p>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-slate-500">
-                    <th className="py-3 pr-4">Office Code</th>
-                    <th className="py-3 pr-4">Office Name</th>
-                    <th className="py-3 pr-4">Role</th>
-                    <th className="py-3 pr-4">Status</th>
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-slate-500">
+                  <th className="py-3 pr-4">Office Code</th>
+                  <th className="py-3 pr-4">Office Name</th>
+                  <th className="py-3 pr-4">Role</th>
+                  <th className="py-3 pr-4">Status</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {pendingOfficesPagination.paginatedItems.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="py-4 text-slate-500">
+                      No pending offices.
+                    </td>
                   </tr>
-                </thead>
+                ) : (
+                  pendingOfficesPagination.paginatedItems.map((office) => (
+                    <tr key={office._id} className="border-b">
+                      <td className="py-3 pr-4">{office.officeCode}</td>
 
-                <tbody>
-                  {optimizedPendingOffices.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" className="py-4 text-slate-500">
-                        No pending offices.
+                      <td className="py-3 pr-4">{office.officeName}</td>
+
+                      <td className="py-3 pr-4 uppercase">{office.role}</td>
+                      <td className="py-3 pr-4">{office.status} </td>
+
+                      <td className="py-3 pr-4">
+                        <span className="text-orange-600 font-medium">
+                          Not verified yet
+                        </span>
                       </td>
                     </tr>
-                  ) : (
-                    optimizedPendingOffices.map((office) => (
-                      <tr key={office._id} className="border-b">
-                        <td className="py-3 pr-4">{office.officeCode}</td>
-
-                        <td className="py-3 pr-4">{office.officeName}</td>
-
-                        <td className="py-3 pr-4 uppercase">{office.role}</td>
-
-                        <td className="py-3 pr-4">
-                          <span className="text-orange-600 font-medium">
-                            Not verified yet
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+          <TablePagination
+            currentPage={pendingOfficesPagination.currentPage}
+            totalPages={pendingOfficesPagination.totalPages}
+            totalItems={pendingOfficesPagination.totalItems}
+            itemsPerPage={pendingOfficesPagination.itemsPerPage}
+            onPageChange={pendingOfficesPagination.goToPage}
+          />
+        </div>
 
         {/* refresh employees */}
         <div className="bg-white rounded-2xl shadow p-6">
@@ -713,7 +1021,7 @@ const AdminDashboard = () => {
                     </td>
                   </tr>
                 ) : (
-                  submittedOffices.map((item) => (
+                  submittedOfficesPagination.paginatedItems.map((item) => (
                     <tr key={item.submissionId} className="border-b">
                       <td className="py-3 pr-4">
                         {item.office?.officeCode} - {item.office?.officeName}
@@ -773,166 +1081,183 @@ const AdminDashboard = () => {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            currentPage={submittedOfficesPagination.currentPage}
+            totalPages={submittedOfficesPagination.totalPages}
+            totalItems={submittedOfficesPagination.totalItems}
+            itemsPerPage={submittedOfficesPagination.itemsPerPage}
+            onPageChange={submittedOfficesPagination.goToPage}
+          />
         </div>
 
         {/* Selected office employee records JSX , now replacing with modal box overlay */}
-    {isOfficeModalOpen && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-    <div className="bg-white w-full max-w-7xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden">
-      <div className="px-6 py-4 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-800">
-            Employee Records
-          </h2>
+        {isOfficeModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="bg-white w-full max-w-7xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden">
+              <div className="px-6 py-4 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800">
+                    Employee Records
+                  </h2>
 
-          <p className="text-sm text-slate-500 mt-1">
-            {selectedOffice?.office?.officeCode} -{" "}
-            {selectedOffice?.office?.officeName}
-          </p>
-        </div>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {selectedOffice?.office?.officeCode} -{" "}
+                    {selectedOffice?.office?.officeName}
+                  </p>
+                </div>
 
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() =>
-              exportOfficeEmployees(
-                selectedOffice.office._id,
-                selectedOffice.office.officeCode
-              )
-            }
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            Export This Office
-          </button>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      exportOfficeEmployees(
+                        selectedOffice.office._id,
+                        selectedOffice.office.officeCode,
+                      )
+                    }
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                  >
+                    Export This Office
+                  </button>
 
-          <button
-            type="button"
-            onClick={closeOfficeModal}
-            className="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-800"
-          >
-            Close
-          </button>
-        </div>
-      </div>
+                  <button
+                    type="button"
+                    onClick={closeOfficeModal}
+                    className="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-800"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
 
-      <div className="p-6 overflow-auto max-h-[75vh]">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-slate-500">
-              <th className="py-3 pr-4">Full Name</th>
-              <th className="py-3 pr-4">DOB</th>
-              <th className="py-3 pr-4">Voter No</th>
-              <th className="py-3 pr-4">Citizenship / District</th>
-              <th className="py-3 pr-4">Parent</th>
-              <th className="py-3 pr-4">Spouse</th>
-              <th className="py-3 pr-4">Office</th>
-              <th className="py-3 pr-4">Home</th>
-              <th className="py-3 pr-4">Position</th>
-              <th className="py-3 pr-4">Verification</th>
-              <th className="py-3 pr-4">Action</th>
-            </tr>
-          </thead>
+              <div className="p-6 overflow-auto max-h-[75vh]">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-slate-500">
+                      <th className="py-3 pr-4">Full Name</th>
+                      <th className="py-3 pr-4">DOB</th>
+                      <th className="py-3 pr-4">Voter No</th>
+                      <th className="py-3 pr-4">Citizenship / District</th>
+                      <th className="py-3 pr-4">Parent</th>
+                      <th className="py-3 pr-4">Spouse</th>
+                      <th className="py-3 pr-4">Office</th>
+                      <th className="py-3 pr-4">Home</th>
+                      <th className="py-3 pr-4">Position</th>
+                      <th className="py-3 pr-4">Verification</th>
+                      <th className="py-3 pr-4">Action</th>
+                    </tr>
+                  </thead>
 
-          <tbody>
-            {selectedEmployeeLoading ? (
-              <tr>
-                <td colSpan="11" className="py-4 text-slate-500">
-                  Loading employee records...
-                </td>
-              </tr>
-            ) : selectedEmployees.length === 0 ? (
-              <tr>
-                <td colSpan="11" className="py-4 text-slate-500">
-                  No employee records found for this office.
-                </td>
-              </tr>
-            ) : (
-              selectedEmployees.map((employee) => (
-                <tr key={employee._id} className="border-b">
-                  <td className="py-3 pr-4">
-                    {employee.fullName || "N/A"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {employee.dob || "N/A"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {employee.voterNo || "N/A"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {employee.citizenshipNumber ||
-                      employee.verifiedVoterDetails?.citizenshipNumber ||
-                      employee.citizenshipNo ||
-                      "N/A"}{" "}
-                    / {employee.citizenshipIssueDistrict || "N/A"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {employee.parentFullName || "N/A"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {employee.spouseFullName || "N/A"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {employee.officeFullName || "N/A"},{" "}
-                    {employee.officeAddress || "N/A"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {employee.homeDistrict || "N/A"},{" "}
-                    {employee.homePalika || "N/A"} -{" "}
-                    {employee.homeWardNo || "N/A"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {employee.position || "N/A"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {employee.isVoterVerified ? (
-                      <span className="text-green-700 font-medium">
-                        Verified
-                      </span>
+                  <tbody>
+                    {selectedEmployeeLoading ? (
+                      <tr>
+                        <td colSpan="11" className="py-4 text-slate-500">
+                          Loading employee records...
+                        </td>
+                      </tr>
+                    ) : selectedEmployees.length === 0 ? (
+                      <tr>
+                        <td colSpan="11" className="py-4 text-slate-500">
+                          No employee records found for this office.
+                        </td>
+                      </tr>
                     ) : (
-                      <span className="text-orange-600 font-medium">
-                        Pending
-                      </span>
+                      selectedEmployeesPagination.paginatedItems.map(
+                        (employee) => (
+                          <tr key={employee._id} className="border-b">
+                            <td className="py-3 pr-4">
+                              {employee.fullName || "N/A"}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {employee.dob || "N/A"}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {employee.voterNo || "N/A"}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {employee.citizenshipNumber ||
+                                employee.verifiedVoterDetails
+                                  ?.citizenshipNumber ||
+                                employee.citizenshipNo ||
+                                "N/A"}{" "}
+                              / {employee.citizenshipIssueDistrict || "N/A"}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {employee.parentFullName || "N/A"}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {employee.spouseFullName || "N/A"}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {employee.officeFullName || "N/A"},{" "}
+                              {employee.officeAddress || "N/A"}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {employee.homeDistrict || "N/A"},{" "}
+                              {employee.homePalika || "N/A"} -{" "}
+                              {employee.homeWardNo || "N/A"}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {employee.position || "N/A"}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {employee.isVoterVerified ? (
+                                <span className="text-green-700 font-medium">
+                                  Verified
+                                </span>
+                              ) : (
+                                <span className="text-orange-600 font-medium">
+                                  Pending
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  className="bg-yellow-500 text-white px-3 py-1.5 rounded-lg hover:bg-yellow-600"
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => deleteEmployee(employee._id)}
+                                  className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ),
+                      )
                     )}
-                  </td>
+                  </tbody>
+                </table>
+              </div>
+              <TablePagination
+                currentPage={selectedEmployeesPagination.currentPage}
+                totalPages={selectedEmployeesPagination.totalPages}
+                totalItems={selectedEmployeesPagination.totalItems}
+                itemsPerPage={selectedEmployeesPagination.itemsPerPage}
+                onPageChange={selectedEmployeesPagination.goToPage}
+              />
+            </div>
+          </div>
+        )}
 
-                  <td className="py-3 pr-4">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className="bg-yellow-500 text-white px-3 py-1.5 rounded-lg hover:bg-yellow-600"
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => deleteEmployee(employee._id)}
-                        className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-)}
-
-          {/* office login logs */}
+        {/* office login logs */}
         <div className="bg-white rounded-2xl shadow p-6">
           <h2 className="text-lg font-semibold text-slate-800">
             Recent Office OTP Login Logs
@@ -958,7 +1283,7 @@ const AdminDashboard = () => {
                     </td>
                   </tr>
                 ) : (
-                  logs.map((log) => (
+                  logsPagination.paginatedItems.map((log) => (
                     <tr key={log._id} className="border-b">
                       <td className="py-3 pr-4">
                         {log.office?.officeCode} - {log.office?.officeName}
@@ -981,6 +1306,13 @@ const AdminDashboard = () => {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            currentPage={logsPagination.currentPage}
+            totalPages={logsPagination.totalPages}
+            totalItems={logsPagination.totalItems}
+            itemsPerPage={logsPagination.itemsPerPage}
+            onPageChange={logsPagination.goToPage}
+          />
         </div>
         {/* office login logs closed */}
 
